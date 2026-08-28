@@ -1,0 +1,21 @@
+{
+  "//": "Standalone strict TypeScript config for the markdown-artifact extension repo. Extends nothing — the package compiles on its own (React toolchain scaffold; typecheck covers src + tests). No dist emit: the renderer entry is consumed as SOURCE by the host bundler, and `main`/`types` point at source.",
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "strict": true,
+    "noImplicitAny": false,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "noEmit": true,
+    "verbatimModuleSyntax": true
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx"],
+  "exclude": ["node_modules", "dist"]
+}

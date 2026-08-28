@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# No committed lockfile — a standalone extension repo resolves fresh in CI
+# (`pnpm install --no-frozen-lockfile`), matching the fleet convention.
+pnpm-lock.yaml
+
+# Build output (tsc outDir)
+dist/
+
+# Test coverage
+coverage/
+
+# Local environment files
+.env
+.env.*
+
+# Logs
+*.log
+
+# OS / editor cruft
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.planning/
