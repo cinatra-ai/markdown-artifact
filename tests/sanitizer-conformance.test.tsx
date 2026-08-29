@@ -155,6 +155,66 @@ describe.skipIf(!REAL_SANITIZER)("what the shared sanitizer REFUSES, never drawn
   });
 });
 
+describe.skipIf(!REAL_SANITIZER)("the adversarial edges of the boundary", () => {
+  it("child tokens inside a link are rendered through the same boundary, not pasted", () => {
+    const body = drawn("[**bold** and `code` and <b>raw</b>](https://example.test/a)");
+    const link = body.querySelector('a[href="https://example.test/a"]');
+    expect(link).not.toBeNull();
+    expect(link?.querySelector("strong")?.textContent).toBe("bold");
+    expect(link?.querySelector("code")?.textContent).toBe("code");
+    expect(link?.querySelector("b")).toBeNull();
+    expect(body.innerHTML).not.toContain("<b>");
+  });
+
+  it("child tokens inside a heading are rendered through the same boundary", () => {
+    const body = drawn("# A <b>raw</b> *and* [linked](https://example.test/a) title");
+    const heading = body.querySelector("h2");
+    expect(heading).not.toBeNull();
+    expect(heading?.querySelector("b")).toBeNull();
+    expect(heading?.querySelector("em")?.textContent).toBe("and");
+    expect(heading?.querySelector('a[href="https://example.test/a"]')).not.toBeNull();
+  });
+
+  it("a title and an alt cannot break out of their own attribute", () => {
+    // The payload here is INSIDE an attribute value. It must stay inside it:
+    // escaped as text, never re-read as a second attribute. So what is checked
+    // is the DOM the browser actually built — no element in the drawn document
+    // carries an event-handler attribute — and that the quote was escaped.
+    const markdown =
+      "[t](https://example.test/a 'x\" onmouseover=alert(1) y')\n\n" +
+      '![a" onerror=alert(1) b](https://example.test/p.png)';
+    const body = drawn(markdown);
+
+    for (const element of body.querySelectorAll("*")) {
+      for (const name of element.getAttributeNames()) {
+        expect(name.startsWith("on"), `${element.tagName} carries ${name}`).toBe(false);
+      }
+    }
+    expect(body.innerHTML).toContain("&quot;");
+
+    const link = body.querySelector("a");
+    expect(link?.getAttribute("title")).toBe('x" onmouseover=alert(1) y');
+    expect(link?.getAttribute("onmouseover")).toBeNull();
+
+    const img = body.querySelector("img");
+    expect(img?.getAttribute("alt")).toBe('a" onerror=alert(1) b');
+    expect(img?.getAttribute("onerror")).toBeNull();
+  });
+
+  it("a destination that only LOOKS allow-listed is still refused", () => {
+    for (const href of [
+      "  javascript:alert(1)",
+      "java\tscript:alert(1)",
+      "JaVaScRiPt:alert(1)",
+      "https:/\\example.test",
+    ]) {
+      const body = drawn(`[t](${href})`);
+      expect(body.innerHTML.toLowerCase(), href).not.toContain("javascript:");
+      cleanup();
+    }
+  });
+});
+
 describe.skipIf(!REAL_SANITIZER)("the preview draws the same document, compact", () => {
   it("the same sanitized body, in a clipped container", () => {
     const markdown = "# Title\n\n- one\n- two\n\n[web](https://example.test/a)";

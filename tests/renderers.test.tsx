@@ -58,11 +58,56 @@ describe.skipIf(REAL_SANITIZER)("the markdown displays draw through the shared s
       expect(container.innerHTML).not.toContain("# A heading");
     });
 
-    it(`${slot} never fetches and never reads the byte urls`, () => {
-      const { container } = render(<Entry {...props(textContent(MARKDOWN_BODY))} />);
-      expect(container.querySelector("iframe")).toBeNull();
-      expect(container.innerHTML).not.toContain("/preview");
-      expect(container.innerHTML).not.toContain("/download");
+    it(`${slot} never fetches: no request road is even touched`, () => {
+      // Watched, not asserted by hand-waving: every road out of the page is
+      // replaced and must stay untouched. A display that reached for bytes is
+      // exactly the display that paints nothing inside a third-party
+      // application, which is why the content comes on the props instead.
+      const calls: string[] = [];
+      const win = window as unknown as Record<string, unknown>;
+      const saved = {
+        fetch: win.fetch,
+        XMLHttpRequest: win.XMLHttpRequest,
+        EventSource: win.EventSource,
+        WebSocket: win.WebSocket,
+        sendBeacon: (win.navigator as Navigator | undefined)?.sendBeacon,
+      };
+      win.fetch = (...a: unknown[]) => {
+        calls.push(`fetch ${String(a[0])}`);
+        return Promise.reject(new Error("no"));
+      };
+      class WatchedXhr {
+        open(_m: string, u: string) {
+          calls.push(`xhr ${u}`);
+        }
+        send() {}
+        setRequestHeader() {}
+      }
+      win.XMLHttpRequest = WatchedXhr as unknown;
+      win.EventSource = class {
+        constructor(u: string) {
+          calls.push(`sse ${u}`);
+        }
+      } as unknown;
+      win.WebSocket = class {
+        constructor(u: string) {
+          calls.push(`ws ${u}`);
+        }
+      } as unknown;
+      try {
+        const { container } = render(<Entry {...props(textContent(MARKDOWN_BODY))} />);
+        expect(calls).toEqual([]);
+        expect(container.querySelector("iframe")).toBeNull();
+        expect(container.querySelector("img")).toBeNull();
+        expect(container.innerHTML).not.toContain("/preview");
+        expect(container.innerHTML).not.toContain("/download");
+      } finally {
+        win.fetch = saved.fetch;
+        win.XMLHttpRequest = saved.XMLHttpRequest;
+        win.EventSource = saved.EventSource;
+        win.WebSocket = saved.WebSocket;
+        if (saved.sendBeacon) (win.navigator as Navigator).sendBeacon = saved.sendBeacon;
+      }
     });
 
     it(`${slot} draws the content the channel pinned, at the revision it names`, () => {
@@ -132,7 +177,28 @@ describe.skipIf(REAL_SANITIZER)("the markdown displays draw through the shared s
           "content-not-text",
         ],
         [props(textContent("   \n  ")), "empty-document"],
+        [
+          props(textContent(MARKDOWN_BODY), {
+            content: undefined as unknown as ArtifactRendererProps["content"],
+          }),
+          "content-unavailable",
+        ],
         [props(textContent(MARKDOWN_BODY), { propsApiVersion: 2 }), "props-version"],
+        [
+          props(textContent(MARKDOWN_BODY), {
+            propsApiVersion: undefined as unknown as number,
+          }),
+          "props-version",
+        ],
+        [
+          props({
+            kind: "none",
+            channelVersion: 2,
+            representationRevisionId: "rev_1",
+            reason: "absent",
+          }),
+          "channel-version",
+        ],
         [
           props(textContent(MARKDOWN_BODY, { channelVersion: 2 })),
           "channel-version",
@@ -164,13 +230,22 @@ describe.skipIf(REAL_SANITIZER)("the markdown displays draw through the shared s
     const p = props(textContent(MARKDOWN_BODY));
     const detail = render(<MarkdownArtifactDetail {...p} />).container;
     const detailBody = detail.querySelector("[data-markdown-body]")?.innerHTML;
+    // Read while the full view is still MOUNTED — a query against a torn-down
+    // container finds nothing whatever the display did.
+    const detailCompact = detail.querySelector("[data-compact='true']");
+    const detailClasses = detail.querySelector("[data-markdown-body]")?.className ?? "";
+    expect(detailCompact).toBeNull();
     cleanup();
     resetMarkdownSanitizerStub();
     const preview = render(<MarkdownArtifactPreview {...p} />).container;
     const previewBody = preview.querySelector("[data-markdown-body]")?.innerHTML;
+    const previewClasses = preview.querySelector("[data-markdown-body]")?.className ?? "";
     expect(previewBody).toBe(detailBody);
     expect(preview.querySelector("[data-compact='true']")).not.toBeNull();
-    expect(detail.querySelector("[data-compact='true']")).toBeNull();
+    // The compact form CLIPS; the full form does not.
+    expect(previewClasses).toContain("overflow-hidden");
+    expect(previewClasses).toMatch(/max-h-/);
+    expect(detailClasses).not.toMatch(/max-h-/);
   });
 
   it("the two entries stay distinct modules, so a swap in the manifest is visible", () => {
@@ -190,6 +265,7 @@ describe("the view decision, as a pure leaf", () => {
       "malformed-props",
       "props-version",
       "channel-version",
+      "content-unavailable",
       "content-absent",
       "content-over-cap",
       "content-unsupported-form",

@@ -31,6 +31,7 @@ export type MarkdownFloorReason =
   | "malformed-props"
   | "props-version"
   | "channel-version"
+  | "content-unavailable"
   | "content-absent"
   | "content-over-cap"
   | "content-unsupported-form"
@@ -58,6 +59,7 @@ const FLOOR_MESSAGES: Record<MarkdownFloorReason, string> = {
   "malformed-props": "This markdown document cannot be drawn: the view was opened without a document to show.",
   "props-version": "This markdown document cannot be drawn: it was handed a document view of a version this display does not read.",
   "channel-version": "This markdown document cannot be drawn: its content arrived in a form of the content channel this display does not read.",
+  "content-unavailable": "This markdown document cannot be drawn here: this view was not given the document to show.",
   "content-absent": "There is nothing to show yet: this artifact has no stored markdown at the revision being viewed.",
   "content-over-cap": "This markdown document is too large to show here. Download it to read the whole document.",
   "content-unsupported-form": "This artifact is not markdown, so the markdown view has nothing to draw.",
@@ -86,26 +88,36 @@ export function resolveMarkdownView(props: MarkdownRendererInput): MarkdownView 
   // display declares. A snapshot at another version is refused here as well —
   // a display reading a shape it never agreed to is the failure this check
   // exists for.
-  if (
-    snapshot.propsApiVersion !== undefined &&
-    snapshot.propsApiVersion !== MARKDOWN_DISPLAY_PROPS_API_VERSION
-  ) {
+  // STRICT, in both directions: a snapshot that does not SAY which version it
+  // was built at is as unreadable as one built at another version. The host
+  // resolves the display and builds the snapshot at the version the display
+  // declares, so a snapshot without that stamp is not one this display agreed
+  // to read.
+  if (snapshot.propsApiVersion !== MARKDOWN_DISPLAY_PROPS_API_VERSION) {
     return floor("props-version");
   }
 
   const content = snapshot.content;
   if (content === null || content === undefined || typeof content !== "object") {
-    return floor("content-absent");
+    // The snapshot carried no projection at all — a surface that does not hand
+    // its displays content. Held APART from a projection that says, itself,
+    // that there is nothing stored: this display must never report an unwired
+    // surface as an artifact with no document in it.
+    return floor("content-unavailable");
+  }
+
+  // The channel's OWN version is checked before anything on the projection is
+  // read, `none` included: a projection built at another channel version may
+  // spell its own absence differently, and reading it at this shape would be a
+  // guess.
+  if (content.channelVersion !== ARTIFACT_CONTENT_CHANNEL_VERSION) {
+    return floor("channel-version");
   }
 
   if (content.kind === "none") {
     if (content.reason === "over-cap") return floor("content-over-cap");
     if (content.reason === "unsupported-form") return floor("content-unsupported-form");
     return floor("content-absent");
-  }
-
-  if (content.channelVersion !== ARTIFACT_CONTENT_CHANNEL_VERSION) {
-    return floor("channel-version");
   }
 
   if (content.kind !== "text") {

@@ -1,6 +1,15 @@
-// The local props copy must stay EXACTLY equal to the SDK leaf it copies. These
-// assertions are the drift detector: the string unions are frozen as runtime
-// values, and a canonical-shaped snapshot must both typecheck and be accepted.
+// The local props copy exists because the SDK does not resolve from a
+// standalone extension repository, and it must stay equal to the SDK leaf it
+// copies.
+//
+// WHAT THESE ASSERTIONS ACTUALLY PROVE, said plainly: they freeze this copy's
+// own unions and shape as runtime values and typecheck a snapshot literal
+// shaped as the host builds one, so a change to THIS copy that nobody meant
+// fails here. They do not read the SDK — nothing in this repository can, with
+// the SDK absent — so they are not a comparison against the leaf. The
+// leaf-versus-host comparison is the mutual-assignability pin that lives beside
+// the leaf itself; this file is the copy's own guard rail, and the values below
+// are the ones to update when the leaf moves.
 
 import { describe, expect, it } from "vitest";
 
