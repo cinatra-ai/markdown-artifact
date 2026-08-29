@@ -4,22 +4,22 @@
 // inside a general text type.
 //
 // A renderer artifact: it declares its accepted upload MIME set, a `detail` and
-// a `preview` v1 renderer, and a dedicated `objectTypes` claim
+// a `preview` v1 display, and a dedicated `objectTypes` claim
 // (`@cinatra-ai/markdown-artifact:artifact`) so the upload pipeline can map the
 // accepted MIME to exactly this type (the exactly-one-or-refuse resolver). The
 // accepted MIME set is DISJOINT from every other base — this one claims markdown
 // alone.
 //
-// The two displays are DECLARED and PUBLISHED here, and they refuse to draw:
-// they render through the SDK's markdown sanitizer leaf entry, and that entry is
-// not published yet. Refusing is deliberate — a display that rendered markdown
-// through a sanitizer of its own would be a second, unreviewed sanitizer in the
-// fleet. See `./display-unavailable`.
+// THE TWO DISPLAYS DRAW. Both receive the pinned markdown on their props,
+// through the versioned server content channel, and render it through the SDK's
+// shared markdown sanitizer leaf entry — the fleet's one sanitizer, so this
+// package carries none of its own. Both are read-only: they draw the document as
+// it was stored at the pinned revision, and offer no editing affordance.
 //
 // The AUTHORITATIVE manifest is the `cinatra` block in `package.json` (what the
 // host install pipeline + the marketplace publish gate read), and each display
 // is published through this package's own `exports` at the key the host's
-// manifest generator derives from the renderer entry. This module re-declares
+// manifest generator derives from the display entry. This module re-declares
 // the `artifact` descriptor as a typed value for programmatic use; the manifest
 // test keeps the two in agreement.
 
@@ -28,7 +28,20 @@ export {
   ARTIFACT_RENDERER_PROPS_API_VERSION,
 } from "./artifact-renderer-props";
 
-export { MARKDOWN_DISPLAY_UNAVAILABLE } from "./display-unavailable";
+export {
+  type ArtifactContentProjection,
+  type ArtifactContentAbsence,
+  type ArtifactContentClass,
+  ARTIFACT_CONTENT_CHANNEL_VERSION,
+} from "./artifact-content-channel";
+
+export {
+  type MarkdownView,
+  type MarkdownFloorReason,
+  MARKDOWN_DISPLAY_PROPS_API_VERSION,
+  markdownFloorMessage,
+  resolveMarkdownView,
+} from "./renderers/markdown-view";
 
 /** The closed v1 renderer-slot names — the WHOLE enum the host contract
  * defines, not just the ones this base declares. Mirrored in full so a consumer

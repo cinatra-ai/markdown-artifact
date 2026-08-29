@@ -5,6 +5,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ARTIFACT_CONTENT_ABSENCES,
+  ARTIFACT_CONTENT_CHANNEL_VERSION,
+  ARTIFACT_CONTENT_CLASSES,
+} from "../src/artifact-content-channel";
+import {
   ARTIFACT_OWNER_LEVELS,
   ARTIFACT_RENDERER_PROPS_API_VERSION,
   ARTIFACT_VISIBILITIES,
@@ -55,8 +60,43 @@ describe("the renderer-props contract copy", () => {
       urls: { preview: null, download: "https://example.test/d" },
       identity: { kind: "extension", extension: "@cinatra-ai/x" },
       actions: { download: "https://example.test/d", openInSource: null },
+      content: {
+        kind: "none",
+        channelVersion: ARTIFACT_CONTENT_CHANNEL_VERSION,
+        representationRevisionId: null,
+        reason: "absent",
+      },
     };
     expect(snapshot.artifact.ownerLevel).toBe("user");
     expect(snapshot.identity.kind).toBe("extension");
+  });
+});
+
+describe("the content-channel contract copy", () => {
+  it("carries the channel version the host builds a projection at", () => {
+    expect(ARTIFACT_CONTENT_CHANNEL_VERSION).toBe(1);
+  });
+
+  it("spells the three content classes exactly as the contract does", () => {
+    expect([...ARTIFACT_CONTENT_CLASSES]).toEqual(["text", "configuration", "page"]);
+  });
+
+  it("spells every named absence exactly as the contract does", () => {
+    expect([...ARTIFACT_CONTENT_ABSENCES]).toEqual(["unsupported-form", "absent", "over-cap"]);
+  });
+
+  it("accepts a text projection shaped exactly as the host builds one", () => {
+    const content: ArtifactRendererProps["content"] = {
+      kind: "text",
+      channelVersion: 1,
+      representationRevisionId: "rev-1",
+      text: "# a draft",
+      encoding: "utf-8",
+      byteLength: 9,
+      projectedByteLength: 9,
+      cap: 262144,
+      truncated: false,
+    };
+    expect(content.kind).toBe("text");
   });
 });
