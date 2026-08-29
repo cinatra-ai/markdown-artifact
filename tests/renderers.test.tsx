@@ -94,12 +94,13 @@ describe.skipIf(REAL_SANITIZER)("the markdown displays draw through the shared s
           calls.push(`ws ${u}`);
         }
       } as unknown;
-      if (saved.sendBeacon) {
-        (win.navigator as Navigator).sendBeacon = ((u: string) => {
-          calls.push(`beacon ${u}`);
-          return true;
-        }) as Navigator["sendBeacon"];
-      }
+      // Installed WHETHER OR NOT this environment ships one: a display that
+      // feature-detects the beacon road would otherwise slip past the watch in
+      // an environment that has none.
+      (win.navigator as Navigator).sendBeacon = ((u: string) => {
+        calls.push(`beacon ${u}`);
+        return true;
+      }) as Navigator["sendBeacon"];
       try {
         const { container } = render(<Entry {...props(textContent(MARKDOWN_BODY))} />);
         expect(calls).toEqual([]);
@@ -112,7 +113,11 @@ describe.skipIf(REAL_SANITIZER)("the markdown displays draw through the shared s
         win.XMLHttpRequest = saved.XMLHttpRequest;
         win.EventSource = saved.EventSource;
         win.WebSocket = saved.WebSocket;
-        if (saved.sendBeacon) (win.navigator as Navigator).sendBeacon = saved.sendBeacon;
+        if (saved.sendBeacon) {
+          (win.navigator as Navigator).sendBeacon = saved.sendBeacon;
+        } else {
+          delete (win.navigator as unknown as Record<string, unknown>).sendBeacon;
+        }
       }
     });
 

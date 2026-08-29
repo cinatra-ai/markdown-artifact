@@ -1,7 +1,13 @@
 // WHAT THE DISPLAY ACTUALLY DRAWS, end to end, through the REAL shared
-// sanitizer: every markdown construct the sanitizer admits, and nothing it does
-// not. One row per construct, mounted through the display entry itself — not
-// through the sanitizer alone — so what is pinned is what a reader would see.
+// sanitizer. One row per construct, mounted through the display entry itself —
+// not through the sanitizer alone — so what is pinned is what a reader would
+// see: the constructs a markdown document is made of, and the ways a document
+// tries to become markup in the page.
+//
+// A FINITE ENUMERATION, and it says so: what follows is the set enumerated
+// here, not a proof over every possible document. The sanitizer's own suite,
+// beside the sanitizer, is where its behaviour is pinned in full; this file
+// pins that THIS display draws through it and inherits it.
 //
 // This suite needs the SDK tree that publishes the sanitizer leaf entry
 // (`CINATRA_SDK_EXTENSIONS_DIR`), because the sanitizer is host-provided and

@@ -1,6 +1,6 @@
 {
   "//": "Standalone strict TypeScript config for the markdown-artifact extension repo. Extends nothing — the package compiles on its own (React toolchain scaffold; typecheck covers src + tests). No dist emit: the display entry is consumed as SOURCE by the host bundler, and `main`/`types` point at source.",
-  "//sanitizer": "The SDK's markdown sanitizer leaf entry is HOST-PROVIDED: the host resolves it when it builds this display, and a standalone extension repository cannot resolve the SDK at all. The path below therefore resolves the specifier to the real SDK source when one is installed, and to the signature-only declaration in ./types when none is. The order matters: an installed SDK always wins, so this repository can never typecheck against a stale local shape.",
+  "//sanitizer": "The SDK's markdown sanitizer leaf entry is HOST-PROVIDED: the host resolves it when it builds this display, and a standalone extension repository cannot resolve the SDK at all. The path below therefore resolves the specifier to the real SDK source when one is installed at that path, and to the signature-only declaration in ./types otherwise. An installed SDK wins where it still publishes that source path; if it moved the file, this repository would typecheck against the local shape instead, so the AUTHORITATIVE typecheck against the real SDK is the one that runs where the SDK lives.",
   "compilerOptions": {
     "target": "ES2023",
     "module": "ESNext",

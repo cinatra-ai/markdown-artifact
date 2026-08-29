@@ -35,11 +35,16 @@ export {
   ARTIFACT_CONTENT_CHANNEL_VERSION,
 } from "./artifact-content-channel";
 
-// TYPES ONLY. The view leaf reaches the host-provided sanitizer, and this root
+// TYPES ONLY, AND FROM THE SANITIZER-FREE CONTRACT MODULE. The view leaf
+// reaches the host-provided sanitizer, and a type re-export from THAT module
+// would make a compiler follow it there. This root
 // module must stay resolvable with nothing installed — a consumer importing the
 // package root reads the manifest and the contracts and pulls no host package
 // in behind them. The displays are imported at their own published subpaths.
-export type { MarkdownView, MarkdownFloorReason } from "./renderers/markdown-view";
+export type {
+  MarkdownView,
+  MarkdownFloorReason,
+} from "./renderers/markdown-view-contract";
 
 /** The closed v1 renderer-slot names — the WHOLE enum the host contract
  * defines, not just the ones this base declares. Mirrored in full so a consumer

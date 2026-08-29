@@ -1,8 +1,13 @@
 // @vitest-environment node
 // ONE SANITIZER IN THE FLEET. This package draws markdown through the SDK's
 // sanitizer leaf entry and carries no sanitization of its own — no parser, no
-// escaping, no scheme allow-list, no tag stripping. These assertions read the
-// package's own sources, so a second implementation cannot be added quietly.
+// escaping, no scheme allow-list, no tag stripping.
+//
+// THESE ARE HEURISTICS OVER THE PACKAGE'S OWN SOURCES, and worth exactly that:
+// they catch a second implementation added the ordinary way — an import, an
+// escape, another road from a string to markup — and they do not catch one
+// somebody set out to hide. Their value is that the ordinary way is how it
+// would actually happen.
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -71,19 +76,21 @@ describe("the package draws through the one shared sanitizer", () => {
     }
   });
 
-  it("declares no runtime dependency at all, and no parser among any of its deps", () => {
+  it("declares no runtime dependency at all, and no parser in any dependency list", () => {
     const pkg = JSON.parse(
       readFileSync(fileURLToPath(new URL("../package.json", import.meta.url)), "utf8"),
     ) as {
       dependencies?: Record<string, string>;
       devDependencies?: Record<string, string>;
       optionalDependencies?: Record<string, string>;
+      peerDependencies?: Record<string, string>;
     };
     expect(pkg.dependencies ?? {}).toEqual({});
     const named = [
       ...Object.keys(pkg.dependencies ?? {}),
       ...Object.keys(pkg.devDependencies ?? {}),
       ...Object.keys(pkg.optionalDependencies ?? {}),
+      ...Object.keys(pkg.peerDependencies ?? {}),
     ];
     for (const dep of named) {
       expect(
@@ -93,16 +100,48 @@ describe("the package draws through the one shared sanitizer", () => {
     }
   });
 
-  it("the package ROOT pulls no host-only module in behind it", () => {
-    // The view leaf reaches the host-provided sanitizer. The root must stay
-    // importable with nothing installed, so it may name the leaf in a TYPE
-    // position only — a value import or re-export would load it.
+  it("the package ROOT reaches the sanitizer through NO module, at any depth", () => {
+    // Not a syntax check: walk the root's own relative imports transitively —
+    // a compiler follows a type re-export into the module it names — and prove
+    // that nothing reachable from the root names the host-provided sanitizer.
+    // This is what keeps the root importable and typecheckable with nothing
+    // installed.
+    const seen = new Set<string>();
+    const queue = [`${SRC}/index.ts`];
+    while (queue.length > 0) {
+      const file = queue.pop() as string;
+      if (seen.has(file)) continue;
+      seen.add(file);
+      const body = readFileSync(file, "utf8");
+      expect(body.includes(SANITIZER_SPECIFIER), `${file} is reachable from the root`).toBe(false);
+      for (const match of body.matchAll(/(?:from|import|require)\s*\(?\s*["'`](\.[^"'`]+)["'`]/g)) {
+        const rel = match[1].replace(/^\.\//, "");
+        const base = file.slice(0, file.lastIndexOf("/"));
+        const candidates = [
+          `${base}/${rel}.ts`,
+          `${base}/${rel}.tsx`,
+          `${base}/${rel}`,
+        ];
+        const resolved = candidates.find((c) => files.includes(c));
+        if (resolved) queue.push(resolved);
+      }
+    }
+    // The walk must actually have walked somewhere, or it proves nothing.
+    expect(seen.size).toBeGreaterThan(2);
+  });
+
+  it("the package root names a renderer module in TYPE position only", () => {
+    // Read as STATEMENTS, not as lines: a re-export spanning several lines is
+    // still one statement, and it is the statement that either erases at build
+    // time or loads a module.
     const root = readFileSync(`${SRC}/index.ts`, "utf8");
-    for (const line of root.split("\n")) {
-      if (!/\.\/renderers\//.test(line)) continue;
-      expect(/export\s+type|import\s+type/.test(line), `root loads a renderer module: ${line.trim()}`).toBe(
-        true,
-      );
+    const statements = [
+      ...root.matchAll(/(?:^|\n)\s*(?:import|export)[\s\S]*?from\s*["'`](\.[^"'`]+)["'`]/g),
+    ];
+    const rendererStatements = statements.filter((m) => m[1].includes("/renderers/"));
+    expect(rendererStatements.length).toBeGreaterThan(0);
+    for (const statement of rendererStatements) {
+      expect(/\b(import|export)\s+type\b/.test(statement[0]), statement[0].trim()).toBe(true);
     }
   });
 
