@@ -145,6 +145,33 @@ describe("the package draws through the one shared sanitizer", () => {
     }
   });
 
+  it("builds a drawable view in ONE module, and its html comes from the sanitizer call itself", () => {
+    // The injection guard below proves there is one road into the page. This
+    // one proves what travels that road: the injected html is a field of a
+    // DOCUMENT view, only the sanitizer module builds a document view, and the
+    // only value it puts in that field is the direct return of the one
+    // sanitizer call. A local parser helper would have to build a document view
+    // to be drawn at all, and no other module may.
+    const builders = files.filter((f) => /kind:\s*"document"\s*,/.test(readFileSync(f, "utf8")));
+    expect(builders).toHaveLength(1);
+    expect(builders[0].endsWith("/renderers/markdown-view.ts")).toBe(true);
+
+    const view = readFileSync(builders[0], "utf8");
+    // Exactly one assignment to the html local, and it is the sanitizer call.
+    const assignments = [...view.matchAll(/(?:^|[^=!<>])\bhtml\s*=\s*([^;]+);/g)].map((m) =>
+      m[1].trim(),
+    );
+    expect(assignments).toHaveLength(1);
+    expect(assignments[0]).toBe('renderSanitizedMarkdown(text, { demoteHeadings: true })');
+    // And the field the component draws carries that local, unaltered.
+    expect(/\bhtml,\n/.test(view) || /\bhtml:\s*html\b/.test(view)).toBe(true);
+
+    // The component injects that field and nothing it computed itself.
+    const component = readFileSync(`${SRC}/renderers/markdown-document.tsx`, "utf8");
+    const injected = /__html:\s*([^}]+)\}/.exec(component)?.[1]?.trim();
+    expect(injected).toBe("view.html");
+  });
+
   it("injects html in exactly ONE place, ONCE, by no other road this guard knows of", () => {
     // Every way a string becomes markup in a page, counted per file: one
     // injection, in the component that owns the document container.

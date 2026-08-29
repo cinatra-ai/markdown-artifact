@@ -76,17 +76,63 @@ export function resolveMarkdownView(props: MarkdownRendererInput): MarkdownView 
     return floor("channel-version");
   }
 
-  if (content.kind === "none") {
-    if (content.reason === "over-cap") return floor("content-over-cap");
-    if (content.reason === "unsupported-form") return floor("content-unsupported-form");
-    return floor("content-absent");
+  // THE PROJECTION IS VALIDATED BEFORE IT IS BELIEVED. At this channel version
+  // the shape is known exactly, so a variant this display does not recognise —
+  // an absence spelled a way the channel does not name, a class that is not one
+  // of the four, a text projection missing a required field — is a projection
+  // this display cannot read, and it says THAT rather than dressing it up as a
+  // legitimate answer about the document.
+  const projection = content as { [key: string]: unknown };
+  const kind = projection.kind;
+
+  if (kind === "none") {
+    const reason = projection.reason;
+    if (reason === "over-cap") return floor("content-over-cap");
+    if (reason === "unsupported-form") return floor("content-unsupported-form");
+    if (reason === "absent") return floor("content-absent");
+    return floor("invalid-content-projection");
   }
 
-  if (content.kind !== "text") {
+  if (kind === "configuration" || kind === "page") {
     return floor("content-not-text");
   }
 
-  const text = typeof content.text === "string" ? content.text : "";
+  if (kind !== "text") {
+    return floor("invalid-content-projection");
+  }
+
+  const text = projection.text;
+  const contentRevisionId = projection.representationRevisionId;
+  const byteLength = projection.byteLength;
+  const projectedByteLength = projection.projectedByteLength;
+  const truncated = projection.truncated;
+  if (
+    typeof text !== "string" ||
+    typeof contentRevisionId !== "string" ||
+    contentRevisionId.length === 0 ||
+    typeof byteLength !== "number" ||
+    typeof projectedByteLength !== "number" ||
+    typeof truncated !== "boolean" ||
+    projection.encoding !== "utf-8"
+  ) {
+    return floor("invalid-content-projection");
+  }
+
+  // THE PINNED REVISION AND THE DRAWN REVISION ARE THE SAME ONE, or nothing is
+  // drawn. The surface says which revision it is showing; the channel says
+  // which revision it read the bytes from. If those disagree — or if the
+  // artifact has no materialized representation at all while the projection
+  // claims one — this display would be labelling one revision's bytes with
+  // another's, and that is worse than drawing nothing.
+  const representation = snapshot.representation as { revisionId?: unknown } | null | undefined;
+  if (
+    representation === null ||
+    representation === undefined ||
+    typeof representation !== "object" ||
+    representation.revisionId !== contentRevisionId
+  ) {
+    return floor("content-revision-mismatch");
+  }
 
   // A display that throws takes the surface around it down. The sanitizer is
   // the one call here that runs somebody else's document through a parser, so
@@ -105,10 +151,9 @@ export function resolveMarkdownView(props: MarkdownRendererInput): MarkdownView 
   return {
     kind: "document",
     html,
-    revisionId: content.representationRevisionId,
-    truncated: content.truncated === true,
-    byteLength: typeof content.byteLength === "number" ? content.byteLength : 0,
-    projectedByteLength:
-      typeof content.projectedByteLength === "number" ? content.projectedByteLength : 0,
+    revisionId: contentRevisionId,
+    truncated,
+    byteLength,
+    projectedByteLength,
   };
 }

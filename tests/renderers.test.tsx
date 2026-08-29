@@ -122,9 +122,14 @@ describe.skipIf(REAL_SANITIZER)("the markdown displays draw through the shared s
     });
 
     it(`${slot} draws the content the channel pinned, at the revision it names`, () => {
+      // The revision the surface says it is showing and the revision the
+      // channel read the bytes from are the SAME one here; they have to be, or
+      // the display refuses (the mismatch case is on the floor list below).
       const { container } = render(
         <Entry
-          {...props(textContent(MARKDOWN_BODY, { representationRevisionId: "rev_7" }))}
+          {...props(textContent(MARKDOWN_BODY, { representationRevisionId: "rev_7" }), {
+            representation: { revisionId: "rev_7", mime: "text/markdown" },
+          })}
         />,
       );
       const root = container.querySelector("[data-artifact-renderer='markdown']");
@@ -188,6 +193,52 @@ describe.skipIf(REAL_SANITIZER)("the markdown displays draw through the shared s
           "content-not-text",
         ],
         [props(textContent("   \n  ")), "empty-document"],
+        [
+          // The bytes were read from another revision than the one this view
+          // says it is showing: drawn, they would carry the wrong label.
+          props(textContent(MARKDOWN_BODY, { representationRevisionId: "rev_9" })),
+          "content-revision-mismatch",
+        ],
+        [
+          props(textContent(MARKDOWN_BODY), {
+            representation: null as unknown as ArtifactRendererProps["representation"],
+          }),
+          "content-revision-mismatch",
+        ],
+        [
+          // A text projection missing a required field of its own version.
+          props({
+            ...(textContent(MARKDOWN_BODY) as Record<string, unknown>),
+            text: undefined,
+          } as unknown as ArtifactRendererProps["content"]),
+          "invalid-content-projection",
+        ],
+        [
+          props({
+            ...(textContent(MARKDOWN_BODY) as Record<string, unknown>),
+            encoding: "utf-16",
+          } as unknown as ArtifactRendererProps["content"]),
+          "invalid-content-projection",
+        ],
+        [
+          // An absence spelled a way this channel version does not name.
+          props({
+            kind: "none",
+            channelVersion: 1,
+            representationRevisionId: "rev_1",
+            reason: "held-back",
+          } as unknown as ArtifactRendererProps["content"]),
+          "invalid-content-projection",
+        ],
+        [
+          // A content class that is not one of the four.
+          props({
+            kind: "spreadsheet",
+            channelVersion: 1,
+            representationRevisionId: "rev_1",
+          } as unknown as ArtifactRendererProps["content"]),
+          "invalid-content-projection",
+        ],
         [
           props(textContent(MARKDOWN_BODY), {
             content: undefined as unknown as ArtifactRendererProps["content"],

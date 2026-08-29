@@ -22,6 +22,8 @@ export type MarkdownFloorReason =
   | "content-over-cap"
   | "content-unsupported-form"
   | "content-not-text"
+  | "content-revision-mismatch"
+  | "invalid-content-projection"
   | "empty-document"
   | "render-failed";
 
@@ -47,6 +49,8 @@ const FLOOR_MESSAGES: Record<MarkdownFloorReason, string> = {
   "content-over-cap": "This markdown document is too large to show here. Download it to read the whole document.",
   "content-unsupported-form": "This artifact is not markdown, so the markdown view has nothing to draw.",
   "content-not-text": "This artifact holds something other than a text document, so the markdown view has nothing to draw.",
+  "content-revision-mismatch": "This markdown document cannot be drawn: the document handed to this view was read from a different revision than the one being viewed.",
+  "invalid-content-projection": "This markdown document cannot be drawn: the content handed to this view is incomplete.",
   "empty-document": "This markdown document is empty.",
   "render-failed": "This markdown document could not be drawn. Download it to read the document.",
 };
