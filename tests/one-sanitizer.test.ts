@@ -29,21 +29,27 @@ describe("the package draws through the one shared sanitizer", () => {
     expect(importers[0].endsWith("/renderers/markdown-view.ts")).toBe(true);
   });
 
-  it("pulls in no markdown parser and no sanitizer of its own", () => {
+  it("imports no markdown parser and no html sanitizer this guard knows of", () => {
     // Quoting-agnostic and package-agnostic: any import of a markdown parser or
     // an html sanitizer, however it is spelled.
     const forbidden =
-      /(marked|markdown-it|remark|rehype|micromark|commonmark|showdown|snarkdown|dompurify|sanitize-html|xss|xss-filters|insane|js-xss)/i;
+      /(marked|markdown-it|remark|rehype|micromark|commonmark|showdown|snarkdown|markdown|dompurify|sanitize-html|xss|insane|purify)/i;
     for (const file of files) {
       for (const line of readFileSync(file, "utf8").split("\n")) {
-        const specifier = /(?:from|import|require\()\s*["'`]([^"'`]+)["'`]/.exec(line)?.[1];
-        if (!specifier) continue;
+        // `from "x"`, `import "x"`, `require("x")` AND `import("x")` — a
+        // dynamic import is an import.
+        const specifier = /(?:from|import|require)\s*\(?\s*["'`]([^"'`]+)["'`]/.exec(line)?.[1];
+        // Only BARE specifiers name a package; a relative path is this
+        // package's own module and is covered by the other guards here.
+        if (!specifier || specifier.startsWith(".") || specifier.startsWith("/")) continue;
+        // The ONE sanitizer this package may import is the shared leaf entry.
+        if (specifier === SANITIZER_SPECIFIER) continue;
         expect(forbidden.test(specifier), `${file}: ${line.trim()}`).toBe(false);
       }
     }
   });
 
-  it("writes no escaping, stripping or scheme-checking of its own", () => {
+  it("writes none of the escaping, stripping or scheme-checking this guard knows of", () => {
     // A sanitizer smuggled in as "just a little escaping" is still a second
     // sanitizer, and it is the one that will be wrong.
     const smells = [
@@ -53,6 +59,9 @@ describe("the package draws through the one shared sanitizer", () => {
       /javascript\s*:/i,
       /\bon(?:error|load|click)\b\s*=/i,
       /\bhttps?:\s*["'`]/,
+      /replaceAll\s*\(/,
+      /encodeURI(Component)?\s*\(/,
+      /new\s+URL\s*\(/,
     ];
     for (const file of files) {
       const body = readFileSync(file, "utf8");
@@ -62,18 +71,46 @@ describe("the package draws through the one shared sanitizer", () => {
     }
   });
 
-  it("declares no dependency of its own on a markdown or sanitizing package", () => {
+  it("declares no runtime dependency at all, and no parser among any of its deps", () => {
     const pkg = JSON.parse(
       readFileSync(fileURLToPath(new URL("../package.json", import.meta.url)), "utf8"),
-    ) as { dependencies?: Record<string, string> };
+    ) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+      optionalDependencies?: Record<string, string>;
+    };
     expect(pkg.dependencies ?? {}).toEqual({});
+    const named = [
+      ...Object.keys(pkg.dependencies ?? {}),
+      ...Object.keys(pkg.devDependencies ?? {}),
+      ...Object.keys(pkg.optionalDependencies ?? {}),
+    ];
+    for (const dep of named) {
+      expect(
+        /(marked|markdown|remark|rehype|micromark|showdown|dompurify|sanitize-html|purify|xss)/i.test(dep),
+        dep,
+      ).toBe(false);
+    }
   });
 
-  it("injects html in exactly ONE place, ONCE, and by no other road", () => {
+  it("the package ROOT pulls no host-only module in behind it", () => {
+    // The view leaf reaches the host-provided sanitizer. The root must stay
+    // importable with nothing installed, so it may name the leaf in a TYPE
+    // position only — a value import or re-export would load it.
+    const root = readFileSync(`${SRC}/index.ts`, "utf8");
+    for (const line of root.split("\n")) {
+      if (!/\.\/renderers\//.test(line)) continue;
+      expect(/export\s+type|import\s+type/.test(line), `root loads a renderer module: ${line.trim()}`).toBe(
+        true,
+      );
+    }
+  });
+
+  it("injects html in exactly ONE place, ONCE, by no other road this guard knows of", () => {
     // Every way a string becomes markup in a page, counted per file: one
     // injection, in the component that owns the document container.
     const roads =
-      /dangerouslySetInnerHTML|\.innerHTML|\.outerHTML|insertAdjacentHTML|document\.write|createContextualFragment|new\s+DOMParser/g;
+      /dangerouslySetInnerHTML|\.innerHTML|\.outerHTML|insertAdjacentHTML|document\.write|createContextualFragment|new\s+DOMParser|srcDoc|srcdoc/g;
     const counts = new Map<string, number>();
     for (const file of files) {
       const hits = readFileSync(file, "utf8").match(roads) ?? [];

@@ -202,16 +202,23 @@ describe.skipIf(!REAL_SANITIZER)("the adversarial edges of the boundary", () => 
   });
 
   it("a destination that only LOOKS allow-listed is still refused", () => {
-    for (const href of [
-      "  javascript:alert(1)",
-      "java\tscript:alert(1)",
-      "JaVaScRiPt:alert(1)",
-      "https:/\\example.test",
-    ]) {
+    for (const href of ["  javascript:alert(1)", "java\tscript:alert(1)", "JaVaScRiPt:alert(1)"]) {
       const body = drawn(`[t](${href})`);
+      expect(body.querySelector("a"), href).toBeNull();
       expect(body.innerHTML.toLowerCase(), href).not.toContain("javascript:");
       cleanup();
     }
+  });
+
+  it("a web destination written oddly is still ONE web destination", () => {
+    // `https:/\\example.test` is a valid https url — the url parser normalizes
+    // the slashes — so the sanitizer admits it, and this pins that as the
+    // behaviour rather than leaving it looking like an escape that got through.
+    const body = drawn("[t](https:/\\example.test)");
+    const link = body.querySelector("a");
+    expect(link).not.toBeNull();
+    expect(new URL(link?.getAttribute("href") ?? "").protocol).toBe("https:");
+    expect(new URL(link?.getAttribute("href") ?? "").hostname).toBe("example.test");
   });
 });
 

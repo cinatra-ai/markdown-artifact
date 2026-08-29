@@ -36,7 +36,8 @@ export type MarkdownFloorReason =
   | "content-over-cap"
   | "content-unsupported-form"
   | "content-not-text"
-  | "empty-document";
+  | "empty-document"
+  | "render-failed";
 
 export type MarkdownView =
   | {
@@ -60,11 +61,12 @@ const FLOOR_MESSAGES: Record<MarkdownFloorReason, string> = {
   "props-version": "This markdown document cannot be drawn: it was handed a document view of a version this display does not read.",
   "channel-version": "This markdown document cannot be drawn: its content arrived in a form of the content channel this display does not read.",
   "content-unavailable": "This markdown document cannot be drawn here: this view was not given the document to show.",
-  "content-absent": "There is nothing to show yet: this artifact has no stored markdown at the revision being viewed.",
+  "content-absent": "No markdown is available to show for the revision being viewed.",
   "content-over-cap": "This markdown document is too large to show here. Download it to read the whole document.",
   "content-unsupported-form": "This artifact is not markdown, so the markdown view has nothing to draw.",
   "content-not-text": "This artifact holds something other than a text document, so the markdown view has nothing to draw.",
   "empty-document": "This markdown document is empty.",
+  "render-failed": "This markdown document could not be drawn. Download it to read the document.",
 };
 
 /** The sentence a reader sees for a floor. One per reason, all distinct. */
@@ -125,8 +127,18 @@ export function resolveMarkdownView(props: MarkdownRendererInput): MarkdownView 
   }
 
   const text = typeof content.text === "string" ? content.text : "";
-  const html = renderSanitizedMarkdown(text, { demoteHeadings: true });
-  if (html.trim().length === 0) {
+
+  // A display that throws takes the surface around it down. The sanitizer is
+  // the one call here that runs somebody else's document through a parser, so
+  // a failure inside it becomes a named floor and nothing else: whatever went
+  // wrong, no markup from a failed render is drawn.
+  let html: string;
+  try {
+    html = renderSanitizedMarkdown(text, { demoteHeadings: true });
+  } catch {
+    return floor("render-failed");
+  }
+  if (typeof html !== "string" || html.trim().length === 0) {
     return floor("empty-document");
   }
 

@@ -58,7 +58,7 @@ describe.skipIf(REAL_SANITIZER)("the markdown displays draw through the shared s
       expect(container.innerHTML).not.toContain("# A heading");
     });
 
-    it(`${slot} never fetches: no request road is even touched`, () => {
+    it(`${slot} never fetches the artifact's content: no request road is touched`, () => {
       // Watched, not asserted by hand-waving: every road out of the page is
       // replaced and must stay untouched. A display that reached for bytes is
       // exactly the display that paints nothing inside a third-party
@@ -94,6 +94,12 @@ describe.skipIf(REAL_SANITIZER)("the markdown displays draw through the shared s
           calls.push(`ws ${u}`);
         }
       } as unknown;
+      if (saved.sendBeacon) {
+        (win.navigator as Navigator).sendBeacon = ((u: string) => {
+          calls.push(`beacon ${u}`);
+          return true;
+        }) as Navigator["sendBeacon"];
+      }
       try {
         const { container } = render(<Entry {...props(textContent(MARKDOWN_BODY))} />);
         expect(calls).toEqual([]);
@@ -248,6 +254,26 @@ describe.skipIf(REAL_SANITIZER)("the markdown displays draw through the shared s
     expect(detailClasses).not.toMatch(/max-h-/);
   });
 
+  for (const [slot, Entry] of entries) {
+    it(`${slot} floors, named, when the sanitizer itself fails`, () => {
+      // The one call that runs somebody else's document through a parser. If it
+      // throws, the display must floor — not take the surface down with it, and
+      // not draw a half-rendered document.
+      const boom = () => {
+        throw new Error("the parser gave up");
+      };
+      const saved = Object.getOwnPropertyDescriptor(sanitizerStubState, "html");
+      Object.defineProperty(sanitizerStubState, "html", { get: boom, configurable: true });
+      try {
+        const { container } = render(<Entry {...props(textContent(MARKDOWN_BODY))} />);
+        expect(container.querySelector("[data-floor='render-failed']")).not.toBeNull();
+        expect(container.querySelector("[data-markdown-body]")).toBeNull();
+      } finally {
+        if (saved) Object.defineProperty(sanitizerStubState, "html", saved);
+      }
+    });
+  }
+
   it("the two entries stay distinct modules, so a swap in the manifest is visible", () => {
     expect(MarkdownArtifactDetail).not.toBe(MarkdownArtifactPreview);
     expect(MarkdownArtifactDetail.name).toBe("MarkdownArtifactDetail");
@@ -271,6 +297,7 @@ describe("the view decision, as a pure leaf", () => {
       "content-unsupported-form",
       "content-not-text",
       "empty-document",
+      "render-failed",
     ] as const;
     const sentences = new Set<string>();
     for (const reason of reasons) {

@@ -38,6 +38,11 @@ function realSanitizerFrom(dir: string): string {
     name?: string;
     exports?: Record<string, unknown>;
   };
+  if (manifest.name !== "@cinatra-ai/sdk-extensions") {
+    throw new Error(
+      `${dir} is "${manifest.name ?? "unnamed"}", not @cinatra-ai/sdk-extensions — it cannot stand in for ${SPECIFIER}.`,
+    );
+  }
   const target = manifest.exports?.[SUBPATH];
   if (typeof target !== "string") {
     throw new Error(`${dir} does not publish "${SUBPATH}" — it cannot stand in for ${SPECIFIER}.`);
