@@ -19,6 +19,10 @@ import {
   ARTIFACT_CONTENT_CLASSES,
 } from "../src/artifact-content-channel";
 import {
+  ARTIFACT_EDIT_CHANNEL_VERSION,
+  ARTIFACT_EDIT_REFUSALS,
+} from "../src/artifact-edit-channel";
+import {
   ARTIFACT_OWNER_LEVELS,
   ARTIFACT_RENDERER_PROPS_API_VERSION,
   ARTIFACT_VISIBILITIES,
@@ -41,6 +45,17 @@ describe("the renderer-props contract copy", () => {
 
   it("carries only the two identity kinds the contract still defines", () => {
     expect([...EFFECTIVE_IDENTITY_KINDS]).toEqual(["extension", "no-primary"]);
+  });
+
+  it("carries the edit channel's version, and spells its refusals exactly as the contract does", () => {
+    expect(ARTIFACT_EDIT_CHANNEL_VERSION).toBe(1);
+    expect([...ARTIFACT_EDIT_REFUSALS]).toEqual([
+      "no-write-rights",
+      "read-only-surface",
+      "unsupported-form",
+      "no-representation",
+      "content-truncated",
+    ]);
   });
 
   it("does not carry the retired identity fields", () => {
@@ -74,6 +89,11 @@ describe("the renderer-props contract copy", () => {
         channelVersion: ARTIFACT_CONTENT_CHANNEL_VERSION,
         representationRevisionId: null,
         reason: "absent",
+      },
+      edit: {
+        kind: "read-only",
+        channelVersion: ARTIFACT_EDIT_CHANNEL_VERSION,
+        reason: "read-only-surface",
       },
     };
     expect(snapshot.artifact.ownerLevel).toBe("user");

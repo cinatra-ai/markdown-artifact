@@ -13,8 +13,16 @@
 // THE TWO DISPLAYS DRAW. Both receive the pinned markdown on their props,
 // through the versioned server content channel, and render it through the SDK's
 // shared markdown sanitizer leaf entry — the fleet's one sanitizer, so this
-// package carries none of its own. Both are read-only: they draw the document as
-// it was stored at the pinned revision, and offer no editing affordance.
+// package carries none of its own.
+//
+// THE DETAIL DISPLAY ALSO EDITS, where the host says it may. It offers two tabs,
+// Code and Preview, shows one of them at a time, and takes an edit in place in
+// the Code view when the host hands it an EDIT CAPABILITY — which the artifact's
+// own page mints for a reader with write rights and every other surface refuses
+// by name. Changes are saved as change sets through the host's own save road; a
+// spinner turns into a check as each one is stored. The `preview` display stays
+// read-only everywhere: it is the compact reading of a document, not a place to
+// work in.
 //
 // The AUTHORITATIVE manifest is the `cinatra` block in `package.json` (what the
 // host install pipeline + the marketplace publish gate read), and each display
@@ -27,6 +35,16 @@ export {
   type ArtifactRendererProps,
   ARTIFACT_RENDERER_PROPS_API_VERSION,
 } from "./artifact-renderer-props";
+
+export {
+  type ArtifactEditCapability,
+  type ArtifactEditOutcome,
+  type ArtifactEditRefusal,
+  ARTIFACT_EDIT_CHANNEL_VERSION,
+  ARTIFACT_EDIT_IDLE_PAUSE_MS,
+  ARTIFACT_EDIT_TEXT_CAP_BYTES,
+  isArtifactEditGranted,
+} from "./artifact-edit-channel";
 
 export {
   type ArtifactContentProjection,
