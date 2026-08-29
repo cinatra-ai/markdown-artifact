@@ -1,9 +1,23 @@
-// The local props copy must stay EXACTLY equal to the SDK leaf it copies. These
-// assertions are the drift detector: the string unions are frozen as runtime
-// values, and a canonical-shaped snapshot must both typecheck and be accepted.
+// The local props copy exists because the SDK does not resolve from a
+// standalone extension repository, and it must stay equal to the SDK leaf it
+// copies.
+//
+// WHAT THESE ASSERTIONS ACTUALLY PROVE, said plainly: they freeze this copy's
+// own unions and shape as runtime values and typecheck a snapshot literal
+// shaped as the host builds one, so a change to THIS copy that nobody meant
+// fails here. They do not read the SDK — nothing in this repository can, with
+// the SDK absent — so they are not a comparison against the leaf. The
+// leaf-versus-host comparison is the mutual-assignability pin that lives beside
+// the leaf itself; this file is the copy's own guard rail, and the values below
+// are the ones to update when the leaf moves.
 
 import { describe, expect, it } from "vitest";
 
+import {
+  ARTIFACT_CONTENT_ABSENCES,
+  ARTIFACT_CONTENT_CHANNEL_VERSION,
+  ARTIFACT_CONTENT_CLASSES,
+} from "../src/artifact-content-channel";
 import {
   ARTIFACT_OWNER_LEVELS,
   ARTIFACT_RENDERER_PROPS_API_VERSION,
@@ -55,8 +69,43 @@ describe("the renderer-props contract copy", () => {
       urls: { preview: null, download: "https://example.test/d" },
       identity: { kind: "extension", extension: "@cinatra-ai/x" },
       actions: { download: "https://example.test/d", openInSource: null },
+      content: {
+        kind: "none",
+        channelVersion: ARTIFACT_CONTENT_CHANNEL_VERSION,
+        representationRevisionId: null,
+        reason: "absent",
+      },
     };
     expect(snapshot.artifact.ownerLevel).toBe("user");
     expect(snapshot.identity.kind).toBe("extension");
+  });
+});
+
+describe("the content-channel contract copy", () => {
+  it("carries the channel version the host builds a projection at", () => {
+    expect(ARTIFACT_CONTENT_CHANNEL_VERSION).toBe(1);
+  });
+
+  it("spells the three content classes exactly as the contract does", () => {
+    expect([...ARTIFACT_CONTENT_CLASSES]).toEqual(["text", "configuration", "page"]);
+  });
+
+  it("spells every named absence exactly as the contract does", () => {
+    expect([...ARTIFACT_CONTENT_ABSENCES]).toEqual(["unsupported-form", "absent", "over-cap"]);
+  });
+
+  it("accepts a text projection shaped exactly as the host builds one", () => {
+    const content: ArtifactRendererProps["content"] = {
+      kind: "text",
+      channelVersion: 1,
+      representationRevisionId: "rev-1",
+      text: "# a draft",
+      encoding: "utf-8",
+      byteLength: 9,
+      projectedByteLength: 9,
+      cap: 262144,
+      truncated: false,
+    };
+    expect(content.kind).toBe("text");
   });
 });

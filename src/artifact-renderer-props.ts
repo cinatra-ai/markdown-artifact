@@ -17,6 +17,12 @@
 // so a drift between this copy and the leaf is a test failure rather than a
 // silent type lie. Replace this module with a type-only import from the leaf as
 // soon as the SDK resolves from a standalone repository.
+//
+// The content a display draws arrives on this snapshot, through the versioned
+// server content channel, read from the pinned revision on the server: see
+// `./artifact-content-channel`, the local copy of that leaf beside this one.
+
+import type { ArtifactContentProjection } from "./artifact-content-channel";
 
 export const ARTIFACT_RENDERER_PROPS_API_VERSION = 1;
 
@@ -72,4 +78,12 @@ export interface ArtifactRendererProps {
     download: string | null;
     openInSource: string | null;
   };
+  /**
+   * THE VERSIONED SERVER CONTENT CHANNEL: the discriminated content projection,
+   * read from the PINNED revision on the server and capped there. A display
+   * switches on `content.kind` and NEVER fetches; `none` is a first-class answer
+   * with a named reason. This is what lets a display draw inside a third-party
+   * application, where reaching for bytes from the browser paints nothing.
+   */
+  content: ArtifactContentProjection;
 }

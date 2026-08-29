@@ -1,0 +1,67 @@
+name: standalone-verification
+
+# THIS REPOSITORY TYPECHECKS AND TESTS ITSELF, and this workflow is what proves
+# it on every change.
+#
+# WHY IT EXISTS BESIDE `ci`. The baseline `ci` workflow classifies a repository
+# that declares host-internal first-party optional peers as a SOURCE MIRROR and
+# skips install, typecheck and test, because such a repository normally cannot
+# resolve those peers and the monorepo owns that verification. This repository
+# declares one such peer — the SDK that publishes the shared markdown sanitizer
+# its displays draw through — but it is NOT unresolvable: its TypeScript config
+# resolves that one specifier to a signature-only declaration when no SDK tree
+# is installed, and its test config resolves it to an inert recording double.
+# Its own suite therefore runs standalone, and a change to the displays must not
+# reach main without it running.
+#
+# WHAT THIS PROVES, AND WHAT IT DOES NOT. It proves the package typechecks, that
+# every display-contract assertion holds, and that no second sanitizer entered
+# the package. It does NOT run the suite that pins what the shared sanitizer
+# admits and refuses: that one needs the SDK tree and runs where the SDK lives.
+# The two are held apart deliberately — a double is never a sanitizer.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  standalone-verification:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24"
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        # No committed lockfile, by the fleet convention for an extracted repo.
+        # The first-party peer is optional and is NOT installed here — that is
+        # the point: the package must verify without it.
+        run: corepack pnpm install --no-frozen-lockfile
+
+      - name: Refuse a resolvable first-party peer
+        # If the SDK ever DID install here, the run below would silently become
+        # a different run — the real sanitizer instead of the double — and the
+        # skip messages would be lies. Fail instead.
+        run: |
+          if [ -d node_modules/@cinatra-ai/sdk-extensions ]; then
+            echo "::error::@cinatra-ai/sdk-extensions resolved in a standalone install; this workflow verifies the package WITHOUT it."
+            exit 1
+          fi
+
+      - name: Typecheck
+        run: corepack pnpm run typecheck
+
+      - name: Test
+        # Without an SDK tree the suites that need the real sanitizer skip
+        # themselves. Everything else must run and pass.
+        run: corepack pnpm test

@@ -1,22 +1,20 @@
-// Markdown preview renderer (slot `preview`).
+// Markdown PREVIEW renderer (slot `preview`) — the same document, compact.
 //
-// DECLARED AND PUBLISHED, NOT YET DRAWABLE. The same refusal the detail entry
-// makes, for the same reason: the display renders markdown through the SDK's
-// markdown sanitizer leaf entry, and that entry is not published yet.
+// The `preview` slot is where a surface shows a document beside other things: a
+// review card, a representation viewer, a list of work. It draws the SAME
+// sanitized rendering the full view draws — one document, one appearance — in a
+// clipped container, so a long draft takes a card's worth of room instead of the
+// whole surface.
 //
-// v1 renderer: requests NO host ports; it will render ONLY from the
-// host-supplied authorized snapshot (`ArtifactRendererProps`).
-//
-// TODO: import the markdown sanitizer leaf entry of `@cinatra-ai/sdk-ui` and
-// render the sanitized document here, then delete the refusal below.
+// v1 renderer: no host ports, no fetching, read-only, and the same named floors
+// as the full view.
 
 import type { ReactElement } from "react";
 
 import type { ArtifactRendererProps } from "../artifact-renderer-props";
-import { MARKDOWN_DISPLAY_UNAVAILABLE } from "../display-unavailable";
+import { MarkdownDocument } from "./markdown-document";
+import { resolveMarkdownView } from "./markdown-view";
 
-export default function MarkdownArtifactPreview(
-  _props: ArtifactRendererProps,
-): ReactElement {
-  throw new Error(MARKDOWN_DISPLAY_UNAVAILABLE);
+export default function MarkdownArtifactPreview(props: ArtifactRendererProps): ReactElement {
+  return <MarkdownDocument view={resolveMarkdownView(props)} slot="preview" compact />;
 }

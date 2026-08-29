@@ -19,6 +19,7 @@
     "test": "vitest run"
   },
   "peerDependencies": {
+    "@cinatra-ai/sdk-extensions": "*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
@@ -86,6 +87,11 @@
           }
         }
       ]
+    }
+  },
+  "peerDependenciesMeta": {
+    "@cinatra-ai/sdk-extensions": {
+      "optional": true
     }
   }
 }
