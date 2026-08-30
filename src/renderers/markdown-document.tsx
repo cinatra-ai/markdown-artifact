@@ -18,6 +18,7 @@
 import type { ReactElement } from "react";
 
 import { markdownFloorMessage, type MarkdownView } from "./markdown-view";
+import { MarkdownDisplayStyle } from "./markdown-display-style";
 
 export type MarkdownSlot = "detail" | "preview";
 
@@ -36,10 +37,22 @@ export function MarkdownBody({
   html: string;
   compact: boolean;
 }): ReactElement {
+  // THE RENDERED DOCUMENT IS STYLED BY THE SHEET THIS PACKAGE SHIPS, keyed to
+  // the `data-markdown-body` attribute below and scoped to the display root that
+  // MOUNTS that sheet — every surface that draws this body sits inside one. The
+  // body does not mount the sheet itself: the tabbed display already mounts it at
+  // its own root, so a Preview that mounted a second copy would put two identical
+  // style elements in the page for one display. It cannot be styled by classes on
+  // the elements: the elements come from the sanitizer's html, not from this
+  // file. And it cannot be left to a host utility class either — a host
+  // generates a class only when it finds it in a tree it scans, and it does not
+  // scan this package, so the headings and paragraphs of a rendered document
+  // drew at body size with no spacing between them: a wall of text where the
+  // drawing asks for a document.
   return (
     <div
       data-markdown-body=""
-      className={`markdown-body text-sm leading-relaxed ${compact ? COMPACT_BODY_CLASSES : FULL_BODY_CLASSES}`}
+      className={`text-sm leading-relaxed ${compact ? COMPACT_BODY_CLASSES : FULL_BODY_CLASSES}`}
       dangerouslySetInnerHTML={{ __html: html }}
     />
   );
@@ -82,6 +95,7 @@ export function MarkdownDocument({
         data-slot={slot}
         data-floor={view.reason}
       >
+        <MarkdownDisplayStyle />
         {markdownFloorMessage(view.reason)}
       </article>
     );
@@ -96,6 +110,7 @@ export function MarkdownDocument({
       {...(compact ? { "data-compact": "true" } : {})}
       {...(view.truncated ? { "data-truncated": "true" } : {})}
     >
+      <MarkdownDisplayStyle />
       <MarkdownBody html={view.html} compact={compact} />
       {view.truncated ? (
         <MarkdownTruncationNote

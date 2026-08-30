@@ -144,6 +144,12 @@ describe("read-only, where the artifact is reviewed", () => {
   it("draws BOTH TABS, NEITHER EDITABLE, and no indicator to draw", () => {
     draw(REFUSED);
     expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Code", "Preview"]);
+    // A REVIEW CARD OPENS ON THE RENDERED DOCUMENT — the reviewer decides on the
+    // work as it will be seen — and Code is one press away, not editable there
+    // either.
+    expect(screen.getByRole("tab", { name: "Preview" }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.queryByLabelText("Markdown source")).toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: "Code" }));
     expect(screen.queryByLabelText("Markdown source")).toBeNull();
     expect(document.querySelector("[data-code-readonly]")?.textContent).toBe(SOURCE);
     expect(screen.queryByRole("status")).toBeNull();

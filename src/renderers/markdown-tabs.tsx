@@ -42,8 +42,9 @@ import {
   type ArtifactEditOutcome,
 } from "../artifact-edit-channel";
 import { MarkdownBody, MarkdownTruncationNote } from "./markdown-document";
+import { MarkdownDisplayStyle } from "./markdown-display-style";
 import { createChangeSetQueue, type ChangeSetQueue } from "./markdown-change-set-queue";
-import { highlightMarkdown, type MarkdownTokenKind } from "./markdown-code-highlight";
+import { highlightMarkdown } from "./markdown-code-highlight";
 import { renderMarkdownHtml } from "./markdown-view";
 import type { MarkdownView } from "./markdown-view-contract";
 
@@ -57,25 +58,15 @@ export type SavingIndicator = null | "saving" | "saved" | "not-saved";
 const TAB_LABELS: Record<MarkdownTab, string> = { code: "Code", preview: "Preview" };
 const TAB_ORDER: MarkdownTab[] = ["code", "preview"];
 
-/** The design system's own tab classes, mirrored so both read as one component. */
+/** The design system's own tab LAYOUT, mirrored so both read as one component.
+ *  The active tab's colour and its 2px underline are NOT here: they are in the
+ *  stylesheet this display ships (`markdown-display-style`), because a host
+ *  generates a utility class only when it finds that class in a tree it scans,
+ *  and it does not scan this package. The application's own tabs spell the
+ *  underline behind a state variant, so the plain form drew nothing at all. */
 const TAB_BASE =
   "relative inline-flex items-center gap-1.5 whitespace-nowrap px-1 py-2 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40";
-const TAB_ACTIVE =
-  "text-primary after:pointer-events-none after:absolute after:inset-x-0 after:-bottom-px after:h-[2px] after:bg-primary";
 const TAB_INACTIVE = "text-muted-foreground hover:text-foreground";
-
-/** The token colours of the code view, in the application's own palette — the
- *  same tokens in light and dark, so the highlighter follows the theme rather
- *  than carrying colours of its own. */
-const TOKEN_CLASSES: Record<MarkdownTokenKind, string> = {
-  text: "",
-  heading: "text-primary font-semibold",
-  strong: "text-foreground font-semibold",
-  emphasis: "text-foreground italic",
-  code: "text-[color:var(--rust,#a2542a)]",
-  link: "text-[color:var(--green,#2f7d54)]",
-  marker: "text-muted-foreground",
-};
 
 /** ONE font metric for the overlay and the textarea. They must agree exactly or
  *  the caret drifts away from the letters underneath it. */
@@ -123,9 +114,8 @@ function SavingIndicatorView({ state }: { state: SavingIndicator }): ReactElemen
       role="status"
       aria-live="polite"
       data-saving-indicator={state}
-      className={`ml-auto inline-flex items-center gap-1.5 text-[11.5px] ${
-        saved ? "text-[color:var(--green,#2f7d54)]" : "text-muted-foreground"
-      }`}
+      className="ml-auto inline-flex items-center gap-1.5 text-[11.5px] text-muted-foreground"
+      style={saved ? { color: "var(--success, currentColor)" } : undefined}
     >
       {saved ? <CheckIcon /> : <SpinnerIcon />}
       {saved ? "Saved" : state === "saving" ? "Saving…" : "Not saved"}
@@ -146,7 +136,7 @@ function CodeText({
   return (
     <>
       {tokens.map((token, index) => (
-        <span key={index} className={TOKEN_CLASSES[token.kind]} data-token={token.kind}>
+        <span key={index} data-token={token.kind}>
           {token.text}
         </span>
       ))}
@@ -175,7 +165,25 @@ export function MarkdownTabbedDisplay({
   const source = view.source;
   const revisionId = view.revisionId;
   const granted = isArtifactEditGranted(edit) ? edit : null;
-  const [tab, setTab] = useState<MarkdownTab>("code");
+  // WHICH TAB A SURFACE OPENS ON is a statement about what that surface is for.
+  // The artifact's own page IS the editor, so it opens on Code, where the caret
+  // already is. A review card is a READING, so it opens on the rendered document
+  // — the reviewer decides on the work as it will be seen — with Code one press
+  // away for the reviewer who wants to see the markup.
+  // WHICH TAB OPENS IS A QUESTION ABOUT THE SURFACE, NOT ABOUT RIGHTS.
+  //
+  // The drawing asks the review card to open on the rendered document with Code
+  // one press away, and the artifact's own page to open on the editor. Keying
+  // that on the edit GRANT answered a different question: a reader who opens the
+  // artifact page without write rights is refused an edit for `no-write-rights`
+  // and would have been handed the review card's reading of a page they came to
+  // read as a page. The host names the surface itself — the review binder mints
+  // the refusal `read-only-surface`, which means "this is not the artifact's own
+  // page" — so the surface is what is asked here, and every other refusal keeps
+  // the page's own opening view.
+  const [tab, setTab] = useState<MarkdownTab>(
+    edit?.kind === "read-only" && edit.reason === "read-only-surface" ? "preview" : "code",
+  );
   const [text, setText] = useState(source);
   /**
    * THE DOCUMENT AS IT IS ON SCREEN, readable from a save's callback without
@@ -309,7 +317,17 @@ export function MarkdownTabbedDisplay({
     tabRefs.current[next]?.focus();
   };
 
-  const html = useMemo(() => (tab === "preview" ? renderMarkdownHtml(text) : ""), [tab, text]);
+  // THE PINNED DOCUMENT IS SANITIZED ONCE, and the keystrokes after it are
+  // sanitized as they come. `resolveMarkdownView` already rendered the pinned
+  // text with the same call and the same options, so while nothing has been
+  // typed this tab draws THAT rendering rather than asking for an identical
+  // second one — which is what keeps "the pinned text goes to the one shared
+  // sanitizer exactly once" true on a surface that opens on Preview, the
+  // read-only reading above all, where nothing is ever typed at all.
+  const html = useMemo(
+    () => (tab !== "preview" ? "" : text === source ? view.html : renderMarkdownHtml(text)),
+    [tab, text, source, view.html],
+  );
 
   return (
     <article
@@ -321,6 +339,7 @@ export function MarkdownTabbedDisplay({
       {...(view.truncated ? { "data-truncated": "true" } : {})}
       {...(granted ? {} : { "data-read-only-reason": edit?.kind === "read-only" ? edit.reason : "no-capability" })}
     >
+      <MarkdownDisplayStyle />
       <div className="flex flex-wrap items-center gap-2 border-b border-line bg-surface px-3">
         <div role="tablist" aria-label="Markdown views" className="inline-flex items-center gap-4">
           {TAB_ORDER.map((name) => (
@@ -337,7 +356,8 @@ export function MarkdownTabbedDisplay({
               tabIndex={tab === name ? 0 : -1}
               onClick={() => selectTab(name)}
               onKeyDown={onTabKeyDown}
-              className={`${TAB_BASE} ${tab === name ? TAB_ACTIVE : TAB_INACTIVE}`}
+              data-active={tab === name ? "true" : "false"}
+              className={`${TAB_BASE} ${tab === name ? "" : TAB_INACTIVE}`}
             >
               {TAB_LABELS[name]}
             </button>
