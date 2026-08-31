@@ -186,6 +186,14 @@ export function MarkdownTabbedDisplay({
   );
   const [text, setText] = useState(source);
   /**
+   * THE REVISION THE VIEW IS SHOWING, which is not always the one the page was
+   * opened on. A refused save RELOADS the newer revision into the view, so the
+   * revision this display names must move with it — the root attribute and the
+   * text under it are one reading, and a reader of the DOM (a browser test, a
+   * screenshot, a person's own inspector) is entitled to have them agree.
+   */
+  const [shownRevisionId, setShownRevisionId] = useState(revisionId);
+  /**
    * THE DOCUMENT AS IT IS ON SCREEN, readable from a save's callback without
    * making that callback depend on a render. An outcome describes the change set
    * that was SENT; whether it is also the latest thing the person typed is a
@@ -203,6 +211,7 @@ export function MarkdownTabbedDisplay({
     setText(source);
     textRef.current = source;
     setIndicator(null);
+    setShownRevisionId(revisionId);
     baseRef.current = granted?.baseRevisionId ?? revisionId;
   }, [source, revisionId, granted?.baseRevisionId]);
 
@@ -235,6 +244,9 @@ export function MarkdownTabbedDisplay({
       baseRef.current = outcome.latestRevisionId;
       setText(outcome.text);
       textRef.current = outcome.text;
+      // The reload moves the revision this display is showing, not only its
+      // text: what the root names and what the code area holds are one reading.
+      setShownRevisionId(outcome.latestRevisionId);
       setIndicator("not-saved");
       cinatraToast.warning(
         "This artifact moved to a newer revision while you were editing, so the save was refused rather than written over it. The newer revision is loaded here.",
@@ -334,7 +346,7 @@ export function MarkdownTabbedDisplay({
       className="soft-panel rounded-card overflow-hidden"
       data-artifact-renderer="markdown"
       data-slot={slot}
-      data-revision={revisionId}
+      data-revision={shownRevisionId}
       data-editable={granted ? "true" : "false"}
       {...(view.truncated ? { "data-truncated": "true" } : {})}
       {...(granted ? {} : { "data-read-only-reason": edit?.kind === "read-only" ? edit.reason : "no-capability" })}

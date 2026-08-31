@@ -33,9 +33,40 @@
 // drawn inside a third-party application that defines fewer of them), the
 // fallback is `currentColor` or a neutral keyword, never an invented colour.
 //
-// THE SYNTAX COLOURS ARE THE STATUS PALETTE'S: indigo, mustard and sea-green —
-// the three accents the application already reserves for meaning, so a heading,
-// a code span and a link read as themselves rather than as decoration.
+// THE SYNTAX COLOURS ARE THE STATUS PALETTE'S: indigo, mustard, sea-green and
+// the brand red — the accents the application already reserves for meaning, so
+// a heading, a code span, link syntax and an emphasis marker read as themselves
+// rather than as decoration. The drawing names those four constructs by name and
+// asks each to read in its OWN colour, so each is named here separately; an
+// emphasis marker carried a font-style and no colour, which left it reading as
+// prose in both themes.
+//
+// AND THEY ARE NAMED FROM TOKENS THE APPLICATION DECLARES IN BOTH THEMES.
+// `--primary` and `--accent` are NOT among them: the application aliases
+// `--primary` to `--accent` in its dark theme, where `--accent` is a near-white
+// slate, so a colour named from either reads as the indigo it should be in the
+// light theme and as a pale slate in the dark one. The status tokens are
+// declared in their own right in both, which is the whole reason the tab strip's
+// indigo below is `--info` and not `--primary`.
+//
+// THE CODE EDITOR IS A PANE OF GLASS, NOT A CONTROL.
+// The editable Code view is two layers — the highlighted text in a pre element, and a
+// transparent textarea over it that owns the caret and the keystrokes. The
+// application's own control ground ("an input, a select or a textarea takes the
+// strong surface") is a PLAIN, UNLAYERED rule, while the utility class that made
+// this textarea transparent is compiled into a cascade LAYER, and an unlayered
+// rule beats every layered one whatever its specificity. So the editor took the
+// control ground: an opaque sheet over the highlighted text, with its own
+// letters transparent on top of it — the document present in the page and no ink
+// on the pixels. The application's light theme is the one that carries that rule
+// (its palette is scoped to that theme's own class and the dark theme is a
+// different class), which is why the same view drew in dark and drew blank in
+// light.
+// This rule is unlayered too, and it OUT-SPECIFIES the control ground rather
+// than relying on source order between a host stylesheet and a mounted style
+// element: three attribute selectors and a type against one class, one type and
+// one attribute. The :not() mirrors the host's own exclusion so a code editor
+// inside an input group would still be the group's to paint.
 
 import type { ReactElement } from "react";
 
@@ -44,7 +75,7 @@ export const MARKDOWN_DISPLAY_CSS = `
   position: relative;
 }
 [data-artifact-renderer="markdown"] [role="tab"][data-active="true"] {
-  color: var(--primary, currentColor);
+  color: var(--info, currentColor);
 }
 [data-artifact-renderer="markdown"] [role="tab"][data-active="true"]::after {
   content: "";
@@ -52,7 +83,7 @@ export const MARKDOWN_DISPLAY_CSS = `
   inset-inline: 0;
   bottom: -1px;
   height: 2px;
-  background: var(--primary, currentColor);
+  background: var(--info, currentColor);
   pointer-events: none;
 }
 
@@ -73,10 +104,18 @@ export const MARKDOWN_DISPLAY_CSS = `
   font-weight: 700;
 }
 [data-artifact-renderer="markdown"] [data-token="emphasis"] {
+  color: var(--destructive, currentColor);
   font-style: italic;
 }
 [data-artifact-renderer="markdown"] [data-token="marker"] {
   color: var(--muted-foreground, currentColor);
+}
+
+[data-artifact-renderer="markdown"] textarea[data-code-editor]:not([data-slot="input-group-control"]) {
+  background: transparent;
+  box-shadow: none;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
 }
 
 [data-artifact-renderer="markdown"] [data-markdown-body] > :first-child {

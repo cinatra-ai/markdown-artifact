@@ -293,6 +293,48 @@ describe.skipIf(REAL_SAVE_ROAD)("a save that did not go through", () => {
     );
   });
 
+  /**
+   * THE ROOT'S REVISION AND THE TEXT IN THE VIEW ARE ONE READING.
+   *
+   * "The editor RELOADS onto the newer revision." The reload replaced the text,
+   * the base the next change set is built on, and the indicator — but the
+   * display root kept writing the revision the page was OPENED on, so the
+   * attribute named one revision while the code area held another's text. A
+   * reader of the DOM (a browser test, a screenshot, the person's own inspector)
+   * was told the wrong thing about what was on screen.
+   */
+  it("MOVES THE ROOT'S REVISION with the reload — the attribute and the text agree", async () => {
+    editSaveStub.defaultOutcome = {
+      outcome: "stale",
+      latestRevisionId: "rev_9",
+      latestRevision: 9,
+      text: "# Somebody else's newer document\n",
+      truncated: false,
+    };
+    draw(GRANT);
+    const root = () => document.querySelector("[data-artifact-renderer='markdown']");
+    // Before the refusal it names the revision the page opened on.
+    expect(root()?.getAttribute("data-revision")).toBe("rev_1");
+
+    fireEvent.change(screen.getByLabelText("Markdown source"), { target: { value: "# Mine\n" } });
+    await idle();
+
+    expect((screen.getByLabelText("Markdown source") as HTMLTextAreaElement).value).toBe(
+      "# Somebody else's newer document\n",
+    );
+    expect(root()?.getAttribute("data-revision")).toBe("rev_9");
+  });
+
+  it("leaves the root's revision ALONE when a save merely failed — nothing was reloaded", async () => {
+    editSaveStub.defaultOutcome = { outcome: "failed", reason: "transport" };
+    draw(GRANT);
+    fireEvent.change(screen.getByLabelText("Markdown source"), { target: { value: "# Mine\n" } });
+    await idle();
+    expect(
+      document.querySelector("[data-artifact-renderer='markdown']")?.getAttribute("data-revision"),
+    ).toBe("rev_1");
+  });
+
   it("KEEPS THE SPINNER and says why when the store could not be reached", async () => {
     editSaveStub.defaultOutcome = { outcome: "failed", reason: "transport" };
     draw(GRANT);

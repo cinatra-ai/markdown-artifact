@@ -138,6 +138,56 @@ describe("the CODE view reads in the application's own syntax colours (both them
     for (const colour of [heading, code, link, marker]) expect(colour).toMatch(/^var\(--/);
   });
 
+  /**
+   * THE DRAWING NAMES FOUR CONSTRUCTS, AND AN EMPHASIS MARKER IS ONE OF THEM:
+   * "a heading, an emphasis marker, link syntax and a code span each read in
+   * their own colour from this system's palette."
+   *
+   * The emphasis token carried a font-style and no colour at all, so an
+   * emphasis marker read in the body colour — present, but not read in its own
+   * colour, in either theme.
+   */
+  it("a heading, an emphasis marker, link syntax and a code span each read in their OWN colour", () => {
+    const four = ["heading", "emphasis", "link", "code"].map(colourOf);
+    expect(new Set(four).size, "two of the four share a colour").toBe(4);
+    for (const colour of four) expect(colour).toMatch(/^var\(--/);
+
+    // None of them may be the plain-text colour, or the construct would read as
+    // prose rather than as syntax.
+    const plain = rulesFor("[data-token]")
+      .join(";")
+      .match(/(?:^|;)\s*color:\s*([^;]+)/)?.[1]
+      ?.trim();
+    for (const colour of four) expect(colour).not.toBe(plain);
+  });
+
+  /**
+   * IN BOTH THEMES, AND THAT IS A STATEMENT ABOUT WHICH TOKEN IS NAMED.
+   *
+   * `--primary` and `--accent` are re-aliased in the dark theme to a near-white
+   * slate, so a syntax colour named from either reads as one indistinguishable
+   * pale colour there however well it reads in the light theme. The status
+   * tokens are declared separately in both themes, which is why the display
+   * draws its syntax from those and from nothing else.
+   */
+  it("names only tokens the application declares in BOTH themes — never --primary or --accent", () => {
+    for (const kind of ["heading", "emphasis", "link", "code", "marker"]) {
+      const colour = colourOf(kind);
+      expect(colour, `the ${kind} token`).not.toMatch(/var\(--primary\b/);
+      expect(colour, `the ${kind} token`).not.toMatch(/var\(--accent\b/);
+    }
+  });
+
+  it("draws an emphasis marker, link syntax and a code span as three separate tokens", () => {
+    draw(GRANT);
+    const kinds = [...document.querySelectorAll("[data-token]")].map((n) =>
+      n.getAttribute("data-token"),
+    );
+    for (const kind of ["emphasis", "link", "code"]) {
+      expect(kinds, `no ${kind} token in the drawn source`).toContain(kind);
+    }
+  });
+
   it("paints the plain text of the view with the foreground token", () => {
     expect(rulesFor("[data-token]").join(";")).toMatch(/color:\s*var\(--foreground/);
   });
@@ -161,19 +211,35 @@ describe("the ACTIVE tab carries the 2px underline", () => {
     expect(tabs[1].getAttribute("data-active")).toBe("false");
   });
 
-  it("underlines the active tab at 2px in the primary token, and only the active one", () => {
+  it("underlines the active tab at 2px in the indigo token, and only the active one", () => {
     const underline = rulesFor('[data-active="true"]::after').join(";");
     expect(underline).toMatch(/height:\s*2px/);
-    expect(underline).toMatch(/background:\s*var\(--primary/);
+    expect(underline).toMatch(/background:\s*var\(--info/);
     expect(underline).toMatch(/content:\s*""/);
     // The inactive tab has no underline rule to draw.
     expect(rulesFor('[data-active="false"]::after')).toEqual([]);
   });
 
   it("colours the active tab's own label with the same token as its underline", () => {
-    expect(rulesFor('[role="tab"][data-active="true"]').join(";")).toMatch(
-      /color:\s*var\(--primary/,
-    );
+    expect(rulesFor('[role="tab"][data-active="true"]').join(";")).toMatch(/color:\s*var\(--info/);
+  });
+
+  /**
+   * "THE ACTIVE ONE INDIGO UNDER A 2PX INDIGO UNDERLINE" — IN BOTH THEMES.
+   *
+   * `--primary` is the indigo hex in the light theme and is re-aliased to
+   * `--accent` in the dark one, where `--accent` is a near-white slate. Naming
+   * it drew the active tab and its underline correctly in light and as a pale
+   * slate in dark — the same rule, two readings, one of them wrong. `--info` is
+   * the indigo the application declares in its own right in BOTH themes.
+   */
+  it("names a token that is indigo in BOTH themes — never --primary or --accent", () => {
+    const tab = rulesFor('[role="tab"][data-active="true"]').join(";");
+    const underline = rulesFor('[data-active="true"]::after').join(";");
+    for (const block of [tab, underline]) {
+      expect(block).not.toMatch(/var\(--primary\b/);
+      expect(block).not.toMatch(/var\(--accent\b/);
+    }
   });
 
   it("moves the mark with the tab the person selects", () => {
@@ -302,5 +368,76 @@ describe("the opening tab follows the SURFACE, not the edit grant", () => {
       draw(edit);
       expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Code", "Preview"]);
     }
+  });
+});
+
+/**
+ * THE LIGHT CODE VIEW DRAWS THE DOCUMENT.
+ *
+ * The editable Code view is two layers: the highlighted `<pre>` underneath, and
+ * a transparent `<textarea>` over it carrying the caret. "Transparent" was a
+ * utility class, and a utility class is compiled into a CASCADE LAYER — while
+ * the application's own control ground ("inputs, selects and textareas take the
+ * strong surface") is written as a PLAIN, UNLAYERED rule. An unlayered rule beats
+ * every layered one whatever its specificity, so the textarea took the control
+ * ground: an OPAQUE sheet over the highlighted text, with the textarea's own
+ * letters transparent on top of it. The view measured as a blank panel with the
+ * document present in the DOM and no ink on the pixels.
+ *
+ * The application's light theme is the one that carries that rule (its palette
+ * is scoped to the light theme's own class, and the dark theme is a different
+ * class), which is why the same view drew correctly in dark and blank in light.
+ *
+ * The display's own stylesheet is unlayered too, so it can answer the control
+ * ground — but only if it out-specifies it, because both are unlayered and
+ * source order between a host stylesheet and a mounted style element is not a
+ * thing this package may rely on.
+ */
+describe("the CODE view's editor never covers the document it sits over", () => {
+  const editorRule = () => rulesFor("textarea[data-code-editor]").join(";");
+
+  it("gives the code editor a transparent ground of its own, in the display's own stylesheet", () => {
+    expect(editorRule(), "no rule for the code editor's ground").toMatch(
+      /background(-color)?:\s*transparent/,
+    );
+  });
+
+  it("drops the control ground's inner highlight with it", () => {
+    expect(editorRule()).toMatch(/box-shadow:\s*none/);
+  });
+
+  it("out-specifies the application's own control ground — both rules are unlayered", () => {
+    // The host's rule is one class, one type and one attribute:
+    //   .cinatra textarea:not([data-slot="input-group-control"])
+    // so the display's must carry MORE than that to win on specificity alone.
+    const selector = MARKDOWN_DISPLAY_CSS.split("}")
+      .map((block) => block.trim())
+      .filter((block) => block.includes("{"))
+      .map((block) => block.slice(0, block.indexOf("{")).trim())
+      .find((one) => one.includes("textarea[data-code-editor]"));
+    expect(selector, "no code-editor selector at all").toBeTruthy();
+    const attributes = (selector as string).match(/\[[^\]]+\]/g) ?? [];
+    // [data-artifact-renderer="markdown"], [data-code-editor] and the
+    // :not(...) exclusion the host's own rule carries: three, against the
+    // host's one class plus one attribute.
+    expect(attributes.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("keeps the caret visible while the letters under it are the ones that are read", () => {
+    // The editor's own text is transparent BY DESIGN — the highlighted layer
+    // beneath it is what a reader sees — but the caret is not.
+    draw(GRANT);
+    const editor = document.querySelector("textarea[data-code-editor]");
+    expect(editor, "no code editor on the editable surface").not.toBeNull();
+    expect(editor?.className).toMatch(/caret-foreground/);
+  });
+
+  it("does not reach a textarea outside the display", () => {
+    const selector = MARKDOWN_DISPLAY_CSS.split("}")
+      .map((block) => block.trim())
+      .filter((block) => block.includes("{"))
+      .map((block) => block.slice(0, block.indexOf("{")).trim())
+      .find((one) => one.includes("textarea[data-code-editor]")) as string;
+    expect(selector.startsWith('[data-artifact-renderer="markdown"]')).toBe(true);
   });
 });
