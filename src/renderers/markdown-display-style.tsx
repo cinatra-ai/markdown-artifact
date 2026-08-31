@@ -62,6 +62,13 @@
 // (its palette is scoped to that theme's own class and the dark theme is a
 // different class), which is why the same view drew in dark and drew blank in
 // light.
+// SELECTED TEXT IS THE ONE PLACE THE EDITOR'S OWN LETTERS MUST BE SEEN. The
+// selection's background is painted by the editor layer, ON TOP of the
+// highlighted text under it, so a selection made with transparent letters
+// erases the very words it selects. The selected letters are therefore given
+// the foreground colour back — the highlight colours are lost inside a
+// selection, which is what a selection is for, and the words stay readable.
+//
 // This rule is unlayered too, and it OUT-SPECIFIES the control ground rather
 // than relying on source order between a host stylesheet and a mounted style
 // element: three attribute selectors and a type against one class, one type and
@@ -116,6 +123,10 @@ export const MARKDOWN_DISPLAY_CSS = `
   box-shadow: none;
   color: transparent;
   -webkit-text-fill-color: transparent;
+}
+[data-artifact-renderer="markdown"] textarea[data-code-editor]::selection {
+  color: var(--foreground, currentColor);
+  -webkit-text-fill-color: var(--foreground, currentColor);
 }
 
 [data-artifact-renderer="markdown"] [data-markdown-body] > :first-child {

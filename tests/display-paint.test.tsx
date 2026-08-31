@@ -178,6 +178,16 @@ describe("the CODE view reads in the application's own syntax colours (both them
     }
   });
 
+  /**
+   * ALL FIVE AT ONCE, THE MARKER INCLUDED. Two suites each compared four of the
+   * five, which leaves one pair — the emphasis marker against the syntax marker
+   * — never compared with any other. Five colours, five readings.
+   */
+  it("gives all FIVE token kinds five different colours — no pair left uncompared", () => {
+    const five = ["heading", "emphasis", "link", "code", "marker"].map(colourOf);
+    expect(new Set(five).size, "two of the five share a colour").toBe(5);
+  });
+
   it("draws an emphasis marker, link syntax and a code span as three separate tokens", () => {
     draw(GRANT);
     const kinds = [...document.querySelectorAll("[data-token]")].map((n) =>
@@ -430,6 +440,25 @@ describe("the CODE view's editor never covers the document it sits over", () => 
     const editor = document.querySelector("textarea[data-code-editor]");
     expect(editor, "no code editor on the editable surface").not.toBeNull();
     expect(editor?.className).toMatch(/caret-foreground/);
+  });
+
+  /**
+   * A SELECTION MUST NOT ERASE THE WORDS IT SELECTS.
+   *
+   * The editor's letters are transparent because the highlighted layer under
+   * them is what is read — but a selection's background is painted by the editor
+   * layer, ON TOP of that highlighted text. Selected words would have gone to a
+   * blank band. The selected letters are given the foreground colour back, so a
+   * selection reads as a selection: the highlight colours give way inside it and
+   * the words stay there.
+   */
+  it("brings the editor's own letters back inside a SELECTION, so a selection does not blank the words", () => {
+    const selection = rulesFor("textarea[data-code-editor]::selection").join(";");
+    expect(selection, "no selection rule for the code editor").toBeTruthy();
+    expect(selection).toMatch(/(^|;)\s*color:\s*var\(--foreground/);
+    expect(selection).toMatch(/-webkit-text-fill-color:\s*var\(--foreground/);
+    // Still no colour of this package's own invention.
+    expect(selection).not.toMatch(/#[0-9a-fA-F]{3,8}|rgb\(|hsl\(|oklch\(/);
   });
 
   it("does not reach a textarea outside the display", () => {

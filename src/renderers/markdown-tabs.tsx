@@ -186,11 +186,19 @@ export function MarkdownTabbedDisplay({
   );
   const [text, setText] = useState(source);
   /**
-   * THE REVISION THE VIEW IS SHOWING, which is not always the one the page was
-   * opened on. A refused save RELOADS the newer revision into the view, so the
-   * revision this display names must move with it — the root attribute and the
-   * text under it are one reading, and a reader of the DOM (a browser test, a
-   * screenshot, a person's own inspector) is entitled to have them agree.
+   * THE REVISION THE VIEW IS READING, which is not always the one the page was
+   * opened on. It moves wherever the store moves the reading under the caret: a
+   * stored change set mints a new revision and the text on screen is that
+   * revision's, and a refused save RELOADS the newer revision's own text into
+   * the view. Both move it, so a reader of the DOM (a browser test, a
+   * screenshot, a person's own inspector) is told which revision the text they
+   * see belongs to.
+   *
+   * WHAT IT DOES NOT CLAIM: that the characters on screen this instant are
+   * stored. Between a keystroke and the pause that sends it the view is ahead of
+   * every revision, and the saving indicator beside the tabs is what says so —
+   * this attribute names the last revision the view was read from or written
+   * into, and nothing stronger.
    */
   const [shownRevisionId, setShownRevisionId] = useState(revisionId);
   /**
@@ -224,6 +232,11 @@ export function MarkdownTabbedDisplay({
     const storedTheLatest = sentText === textRef.current;
     if (outcome.outcome === "saved") {
       baseRef.current = outcome.revisionId;
+      // A STORED CHANGE SET IS A NEW REVISION, and the view is reading it: the
+      // text on screen was written INTO this revision, so the root names it from
+      // here on. Leaving the attribute on the revision the page was opened on
+      // was the same disagreement the refusal path had, on the ordinary road.
+      setShownRevisionId(outcome.revisionId);
       setIndicator(storedTheLatest ? "saved" : "saving");
       return;
     }

@@ -201,6 +201,52 @@ describe.skipIf(REAL_SAVE_ROAD)("the spinner, and the check", () => {
   });
 });
 
+/**
+ * THE ROOT'S REVISION FOLLOWS THE STORE ON THE ORDINARY ROAD TOO.
+ *
+ * A refusal is the rare road. The COMMON one is a change set that is stored,
+ * which mints a NEW revision: from that moment the text on screen belongs to
+ * that revision and to no other, so the attribute a reader of the DOM is given
+ * must name it. Moving the attribute only on the refusal left the ordinary road
+ * saying the same wrong thing the refusal used to say — the revision the page
+ * was opened on, under text that had moved on five times.
+ */
+describe.skipIf(REAL_SAVE_ROAD)("the revision the root names, as change sets are stored", () => {
+  const root = () => document.querySelector("[data-artifact-renderer='markdown']");
+
+  it("MOVES THE ROOT'S REVISION when a change set is STORED — the attribute names what holds the text", async () => {
+    editSaveStub.defaultOutcome = { outcome: "saved", revisionId: "rev_2", revision: 2 };
+    draw(GRANT);
+    expect(root()?.getAttribute("data-revision")).toBe("rev_1");
+    fireEvent.change(screen.getByLabelText("Markdown source"), { target: { value: "# Stored\n" } });
+    await idle();
+    expect(screen.getByRole("status").getAttribute("data-saving-indicator")).toBe("saved");
+    expect(root()?.getAttribute("data-revision")).toBe("rev_2");
+  });
+
+  it("keeps moving it, change set after change set", async () => {
+    editSaveStub.outcomes = [
+      { outcome: "saved", revisionId: "rev_2", revision: 2 },
+      { outcome: "saved", revisionId: "rev_3", revision: 3 },
+    ];
+    draw(GRANT);
+    fireEvent.change(screen.getByLabelText("Markdown source"), { target: { value: "# One\n" } });
+    await idle();
+    expect(root()?.getAttribute("data-revision")).toBe("rev_2");
+    fireEvent.change(screen.getByLabelText("Markdown source"), { target: { value: "# Two\n" } });
+    await idle();
+    expect(root()?.getAttribute("data-revision")).toBe("rev_3");
+  });
+
+  it("leaves it ALONE when the store wrote nothing — an unchanged save mints no revision", async () => {
+    editSaveStub.defaultOutcome = { outcome: "unchanged", revisionId: "rev_1" };
+    draw(GRANT);
+    fireEvent.change(screen.getByLabelText("Markdown source"), { target: { value: `${SOURCE}x` } });
+    await idle();
+    expect(root()?.getAttribute("data-revision")).toBe("rev_1");
+  });
+});
+
 describe.skipIf(REAL_SAVE_ROAD)("the change set's boundaries", () => {
   it("sends on LEAVING THE VIEW, before the pause has elapsed", async () => {
     draw(GRANT);
