@@ -13,6 +13,12 @@
 export interface ArtifactEditSaveDeps {
   fetch?: typeof fetch;
   signal?: AbortSignal;
+  /** This change set is the one the reader is LEAVING on — the pause never
+   *  elapsed and the document is on its way out, so the request must outlive
+   *  the document that started it if the browser will carry it that way. The
+   *  leaf decides what to ask of the browser; the display only says which
+   *  saves these are. */
+  leaving?: boolean;
 }
 
 export declare function saveArtifactEdit(

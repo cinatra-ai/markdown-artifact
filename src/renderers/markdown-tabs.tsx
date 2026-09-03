@@ -209,6 +209,16 @@ export function MarkdownTabbedDisplay({
    */
   const textRef = useRef(source);
   const [indicator, setIndicator] = useState<SavingIndicator>(null);
+  /**
+   * A COMPOSITION IS IN PROGRESS — an input method is assembling a word out of
+   * keystrokes, and every intermediate state arrives as an ordinary change.
+   * Those states are drawn (the person must see what they are composing) but
+   * none of them bounds a change set: half a word is text nobody wrote, and an
+   * idle pause elapsing over one would store it as a revision. The change set is
+   * bounded at the composition instead, so "one revision per change set" stays
+   * one revision per word rather than one per keystroke of it.
+   */
+  const composingRef = useRef(false);
   const baseRef = useRef(granted?.baseRevisionId ?? revisionId);
   const idPrefix = useId();
   const tabRefs = useRef<Partial<Record<MarkdownTab, HTMLButtonElement | null>>>({});
@@ -281,10 +291,11 @@ export function MarkdownTabbedDisplay({
     let created: ChangeSetQueue | null = null;
     created = createChangeSetQueue<ArtifactEditOutcome>({
       idlePauseMs: granted.idlePauseMs || ARTIFACT_EDIT_IDLE_PAUSE_MS,
-      save: (next) =>
+      save: (next, options) =>
         saveArtifactEdit(
           { ...granted, baseRevisionId: baseRef.current },
           next,
+          { leaving: options.leaving },
         ) as Promise<ArtifactEditOutcome>,
       onOutcome: (outcome, sentText) => applyOutcome(outcome, sentText, created),
     });
@@ -296,7 +307,25 @@ export function MarkdownTabbedDisplay({
   // away, closing). Both flush whatever the pause has not sent yet.
   useEffect(() => {
     if (!queue) return;
-    const flush = (): void => queue.flush();
+    // THE DOCUMENT ITSELF IS GOING: these flushes are LEAVING saves, and the
+    // change set has to outlive the document that started it.
+    //
+    // A COMPOSITION IN PROGRESS IS CONSUMED FIRST, here as everywhere else: a
+    // word being assembled by an input method is deliberately not in the queue,
+    // so tearing the queue down without taking it is exactly how the last thing
+    // a person typed disappears. Everything this closure reads — the queue, and
+    // the two refs — is stable for the life of the effect, so it needs no
+    // handle written during a render to stay current.
+    const leave = (): void => {
+      if (composingRef.current) {
+        composingRef.current = false;
+        queue.edited(textRef.current);
+      }
+    };
+    const flush = (): void => {
+      leave();
+      queue.flush(true);
+    };
     const onVisibility = (): void => {
       if (typeof document !== "undefined" && document.visibilityState === "hidden") flush();
     };
@@ -309,6 +338,10 @@ export function MarkdownTabbedDisplay({
         window.removeEventListener("pagehide", flush);
         document.removeEventListener("visibilitychange", onVisibility);
       }
+      // UNMOUNTING IS LEAVING TOO, and a route change fires none of the events
+      // above. `dispose` sends what is in the slot; the composition has to reach
+      // the slot before it does.
+      leave();
       queue.dispose();
     };
   }, [queue]);
@@ -318,14 +351,32 @@ export function MarkdownTabbedDisplay({
     textRef.current = next;
     // THE SPINNER STARTS AT THE EDIT, not at the send: "a spinner appears when
     // the person starts editing and turns into a check when the latest change is
-    // stored", so the seconds of the idle pause are covered too.
+    // stored", so the seconds of the idle pause are covered too. It starts at a
+    // composing keystroke as well — the reader IS editing, and the indicator
+    // says where the change is, not which road it took to get there.
     setIndicator("saving");
+    // MID-COMPOSITION, THE CLOCK DOES NOT START. The composed word becomes a
+    // change set when the input method says it is a word.
+    if (composingRef.current) return;
     queue?.edited(next);
+  };
+
+  /** Send whatever is unsent NOW. A composition in progress is CONSUMED first:
+   *  the reader is leaving with a word half-assembled, and what they can see is
+   *  what has to be saved — dropping it here is how the last thing typed before
+   *  navigating away disappears. */
+  const flushNow = (leaving: boolean): void => {
+    if (composingRef.current) {
+      composingRef.current = false;
+      queue?.edited(textRef.current);
+    }
+    queue?.flush(leaving);
   };
 
   const selectTab = (next: MarkdownTab): void => {
     // Leaving the Code view is one of the two things that bounds a change set.
-    if (tab === "code" && next !== "code") queue?.flush();
+    // The DOCUMENT is not going anywhere, so this is not a leaving save.
+    if (tab === "code" && next !== "code") flushNow(false);
     setTab(next);
   };
 
@@ -419,7 +470,22 @@ export function MarkdownTabbedDisplay({
                 spellCheck={false}
                 value={text}
                 onChange={(event) => onEdited(event.target.value)}
-                onBlur={() => queue?.flush()}
+                onCompositionStart={() => {
+                  composingRef.current = true;
+                }}
+                onCompositionEnd={(event) => {
+                  composingRef.current = false;
+                  // The composed word is what the change set carries. Take it
+                  // from the event rather than from the last change: the two
+                  // agree in every browser that fires the change first, and
+                  // where they do not, the composition end is the later truth.
+                  const composed = event.currentTarget.value;
+                  setText(composed);
+                  textRef.current = composed;
+                  setIndicator("saving");
+                  queue?.edited(composed);
+                }}
+                onBlur={() => flushNow(false)}
                 className={`absolute inset-0 h-full w-full resize-none border-0 bg-transparent p-0 text-transparent caret-foreground outline-none ${CODE_TEXT}`}
               />
             </div>

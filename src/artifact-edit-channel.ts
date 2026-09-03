@@ -30,6 +30,12 @@ export const ARTIFACT_EDIT_IDLE_PAUSE_MS = 900;
 /** The largest change set the channel carries, in UTF-8 bytes. */
 export const ARTIFACT_EDIT_TEXT_CAP_BYTES = 256 * 1024;
 
+/** The largest change set a LEAVING save asks the browser to carry past the
+ *  document that started it, in UTF-8 bytes. The platform bounds such requests
+ *  and refuses one over the bound outright, so an over-budget leaving change
+ *  set goes as an ordinary request instead. Mirrors the leaf. */
+export const ARTIFACT_EDIT_KEEPALIVE_CAP_BYTES = 64 * 1024;
+
 /** Why the host did not grant the edit — spelled out so it can be asserted. */
 export const ARTIFACT_EDIT_REFUSALS = [
   "no-write-rights",

@@ -272,6 +272,138 @@ describe.skipIf(REAL_SAVE_ROAD)("the change set's boundaries", () => {
     expect(editSaveCalls.map((c) => c.text)).toEqual(["# Blurred\n", "# Hidden\n"]);
   });
 
+  // COMPOSED INPUT IS ONE EDIT, NOT ITS INTERMEDIATE STATES. A person writing
+  // Japanese, Chinese or Korean types a word through an input method that
+  // reports every intermediate state as an ordinary change. Each of those is
+  // half a word — text nobody wrote and nobody wants a revision of — and a pause
+  // that elapses mid-composition would store one. The display draws every
+  // intermediate state (the person must see what they are composing) but bounds
+  // the change set at the COMPOSITION, so the plan's "one revision per saved
+  // change set" is one revision per word rather than one per keystroke of it.
+  it("does not cut a COMPOSITION into change sets — the composed word is one", async () => {
+    draw(GRANT);
+    const editor = screen.getByLabelText("Markdown source");
+
+    fireEvent.compositionStart(editor);
+    fireEvent.change(editor, { target: { value: "# n" } });
+    await idle();
+    fireEvent.change(editor, { target: { value: "# ni" } });
+    await idle();
+    fireEvent.change(editor, { target: { value: "# に" } });
+    await idle();
+
+    // Nothing has been sent: none of those three is a word anybody typed.
+    expect(editSaveCalls).toHaveLength(0);
+    // But the person SEES what they are composing.
+    expect((editor as HTMLTextAreaElement).value).toBe("# に");
+    // And the indicator is already spinning, from the first keystroke.
+    expect(screen.getByRole("status").getAttribute("data-saving-indicator")).toBe("saving");
+
+    fireEvent.compositionEnd(editor, { target: { value: "# 日本" } });
+    await idle();
+    expect(editSaveCalls.map((c) => c.text)).toEqual(["# 日本"]);
+  });
+
+  it("takes the COMPOSED text when the reader leaves mid-composition", async () => {
+    draw(GRANT);
+    const editor = screen.getByLabelText("Markdown source");
+
+    fireEvent.compositionStart(editor);
+    fireEvent.change(editor, { target: { value: "# にほん" } });
+    await idle();
+    expect(editSaveCalls).toHaveLength(0);
+
+    // Leaving is the other thing that bounds a change set, and it must not lose
+    // what is being composed at the moment the person leaves.
+    fireEvent.blur(editor);
+    await settle();
+    expect(editSaveCalls.map((c) => c.text)).toEqual(["# にほん"]);
+  });
+
+  // A SAVE THE READER IS LEAVING ON HAS TO OUTLIVE THE DOCUMENT. The pause never
+  // elapsed, the page is going away, and an ordinary request dies with the
+  // document that started it — so the change set most likely to be lost is
+  // exactly the last one. The display says which saves those are; the channel
+  // decides what the browser is asked to carry.
+  it("marks a save the reader is LEAVING on, and only those", async () => {
+    draw(GRANT);
+    const editor = screen.getByLabelText("Markdown source");
+
+    // The ordinary road: the pause elapsed with the page still here.
+    fireEvent.change(editor, { target: { value: "# Paused\n" } });
+    await idle();
+    expect(editSaveCalls).toHaveLength(1);
+    expect(editSaveCalls[0].deps?.leaving).toBeFalsy();
+
+    // The document is going away.
+    fireEvent.change(editor, { target: { value: "# Hidden\n" } });
+    Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
+    fireEvent(document, new Event("visibilitychange"));
+    await settle();
+    expect(editSaveCalls).toHaveLength(2);
+    expect(editSaveCalls[1].deps?.leaving).toBe(true);
+
+    Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+    fireEvent.change(editor, { target: { value: "# Gone\n" } });
+    fireEvent(window, new Event("pagehide"));
+    await settle();
+    expect(editSaveCalls).toHaveLength(3);
+    expect(editSaveCalls[2].deps?.leaving).toBe(true);
+  });
+
+  // LEAVING INTENT SURVIVES A SAVE THAT IS ALREADY IN FLIGHT. The reader leaves
+  // while one change set is still on the wire, so the one behind it cannot go
+  // yet — and it is the one MOST likely to be lost, because by the time the slot
+  // frees the document may already be gone. It has to inherit the leaving mark
+  // from the flush that could not send it, not be sent as an ordinary save.
+  it("carries the LEAVING mark onto a change set queued behind a save in flight", async () => {
+    const release = gateNextSave();
+    draw(GRANT);
+    const editor = screen.getByLabelText("Markdown source");
+
+    fireEvent.change(editor, { target: { value: "# First\n" } });
+    await idle();
+    expect(editSaveCalls).toHaveLength(1);
+    expect(editSaveCalls[0].deps?.leaving).toBeFalsy();
+
+    // A second change set, then the document goes while the first is in flight.
+    fireEvent.change(editor, { target: { value: "# Second\n" } });
+    fireEvent(window, new Event("pagehide"));
+    await settle();
+    expect(editSaveCalls).toHaveLength(1);
+
+    await act(async () => {
+      release();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(editSaveCalls.map((c) => c.text)).toEqual(["# First\n", "# Second\n"]);
+    expect(editSaveCalls[1].deps?.leaving).toBe(true);
+  });
+
+  // UNMOUNTING IS LEAVING TOO, and a route change does not necessarily fire any
+  // of the browser events the listeners watch. A composition in progress is not
+  // in the queue by design, so tearing the queue down without consuming it first
+  // is exactly how the last word a person typed disappears.
+  it("takes the COMPOSED text when the view UNMOUNTS mid-composition", async () => {
+    const view = draw(GRANT);
+    const editor = screen.getByLabelText("Markdown source");
+
+    fireEvent.compositionStart(editor);
+    fireEvent.change(editor, { target: { value: "# にほんご" } });
+    await idle();
+    expect(editSaveCalls).toHaveLength(0);
+
+    await act(async () => {
+      view.unmount();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(editSaveCalls.map((c) => c.text)).toEqual(["# にほんご"]);
+    expect(editSaveCalls[0].deps?.leaving).toBe(true);
+  });
+
   it("SERIALISES: one save in flight, the next carrying only the latest text", async () => {
     const release = gateNextSave();
     draw(GRANT);

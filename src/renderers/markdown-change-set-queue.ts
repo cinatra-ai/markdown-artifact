@@ -28,8 +28,13 @@
 // a test can drive them with a fake clock.
 
 export interface ChangeSetQueueDeps<TOutcome> {
-  /** Send one change set. Never throws — the SDK's save answers with outcomes. */
-  save(text: string): Promise<TOutcome>;
+  /** Send one change set. Never throws — the SDK's save answers with outcomes.
+   *
+   *  `leaving` says the reader is going: the pause never elapsed, the view or
+   *  the document is on its way out, and the request has to outlive the document
+   *  that started it if it is to complete at all. It is the queue that knows
+   *  this — the send road only carries it. */
+  save(text: string, options: { leaving: boolean }): Promise<TOutcome>;
   /** Called with every outcome, and the text that produced it. */
   onOutcome(outcome: TOutcome, text: string): void;
   /** Called when a change set is handed to `save`, so the indicator can spin. */
@@ -41,8 +46,10 @@ export interface ChangeSetQueueDeps<TOutcome> {
 export interface ChangeSetQueue {
   /** The document changed. Restarts the idle pause. */
   edited(text: string): void;
-  /** Send NOW, if anything is unsent — leaving the view, or the pause elapsing. */
-  flush(): void;
+  /** Send NOW, if anything is unsent — leaving the view, or the pause elapsing.
+   *  `leaving` is true where the DOCUMENT is going away (hidden, unloading,
+   *  unmounting) and false where only the view changed under a live page. */
+  flush(leaving?: boolean): void;
   /**
    * FORGET WHAT HAS NOT BEEN SENT. The editor reloaded onto another revision —
    * a stale refusal — so the text waiting in the slot describes a document that
@@ -69,6 +76,15 @@ export function createChangeSetQueue<TOutcome>(
   let timer: ReturnType<typeof setTimeout> | null = null;
   /** Closed to NEW edits (the editor went away). Not closed to the LAST one. */
   let closed = false;
+  /**
+   * A FLUSH ASKED TO LEAVE AND COULD NOT SEND YET. The reader left while a save
+   * was still on the wire, so the change set behind it had to wait — and it is
+   * the one MOST likely to be lost, because by the time the slot frees the
+   * document may already be gone. The intent is therefore remembered rather than
+   * dropped with the call that could not act on it, and it only ever turns ON:
+   * a page that is going away does not come back before the queue is finished.
+   */
+  let leavingPending = false;
 
   const clear = (): void => {
     if (timer !== null) {
@@ -77,15 +93,28 @@ export function createChangeSetQueue<TOutcome>(
     }
   };
 
-  const send = (): void => {
+  const send = (leaving: boolean): void => {
     // NOTE the absence of a `closed` guard: a change set already made is sent
     // even if the editor has gone away. See `dispose`.
-    if (sending !== null || unsent === null) return;
+    if (sending !== null || unsent === null) {
+      // THE INTENT IS REMEMBERED ONLY WHERE THERE IS A CHANGE SET IT COULD NOT
+      // SEND. A flush that found the slot empty leaves nothing behind: the
+      // budget a browser gives requests that outlive their document is small
+      // and SHARED across every such request the page has in flight, so a mark
+      // spent on a save that has a live document to complete in is a mark the
+      // real leaving save may not have. A page hidden with an empty slot and
+      // then shown again is not leaving, and the ordinary save that follows it
+      // must not be marked as though it were.
+      if (leaving && unsent !== null) leavingPending = true;
+      return;
+    }
     const text = unsent;
     unsent = null;
     sending = text;
+    const leavingNow = leaving || leavingPending;
+    leavingPending = false;
     deps.onSending?.(text);
-    void deps.save(text).then(
+    void deps.save(text, { leaving: leavingNow }).then(
       (outcome) => {
         sending = null;
         deps.onOutcome(outcome, text);
@@ -93,14 +122,17 @@ export function createChangeSetQueue<TOutcome>(
         // and it goes at once: the person has stopped typing long enough for the
         // pause to fire, so waiting a second pause would be a delay they did
         // not ask for.
-        if (unsent !== null) send();
+        // A change set queued behind this one is leaving too if the editor has
+        // already gone away, or if a flush asked to leave while this save held
+        // the slot — `closed` and `leavingPending` are those two facts.
+        if (unsent !== null) send(closed || leavingPending);
       },
       () => {
         // `save` is the SDK's, which answers with outcomes rather than throwing.
         // A rejection here is a broken host road, not a failed save: release the
         // slot so the editor is not wedged, and let the next change set try.
         sending = null;
-        if (unsent !== null) send();
+        if (unsent !== null) send(closed || leavingPending);
       },
     );
   };
@@ -112,16 +144,22 @@ export function createChangeSetQueue<TOutcome>(
       clear();
       timer = setTimeout(() => {
         timer = null;
-        send();
+        send(false);
       }, deps.idlePauseMs);
     },
-    flush(): void {
+    flush(leaving = false): void {
       clear();
-      send();
+      send(leaving);
     },
     cancelPending(): void {
       clear();
       unsent = null;
+      // THE LEAVING MARK BELONGED TO THE CHANGE SET, and the change set is
+      // gone. A refusal that reloads the newer revision drops the queued text;
+      // a mark left latched here would be spent on the next ORDINARY save, one
+      // that has a live document to complete in, out of a budget the real
+      // leaving save may then not have.
+      leavingPending = false;
     },
     /**
      * LEAVING FOR GOOD, WITHOUT LOSING THE LAST CHANGE SET. Closing to new edits
@@ -134,7 +172,7 @@ export function createChangeSetQueue<TOutcome>(
     dispose(): void {
       clear();
       closed = true;
-      send();
+      send(true);
     },
     get inFlight(): boolean {
       return sending !== null;

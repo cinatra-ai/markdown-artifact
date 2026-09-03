@@ -13,6 +13,10 @@
 export interface RecordedEditSave {
   capability: unknown;
   text: string;
+  /** The third argument the display sent — where "this is a leaving save" is
+   *  carried, so a test can see that the request was marked to outlive the
+   *  document rather than only that it went. */
+  deps: { leaving?: boolean } | undefined;
 }
 
 /** Every save the display sent, in order. */
@@ -51,8 +55,9 @@ export function gateNextSave(): () => void {
 export async function saveArtifactEdit(
   capability: unknown,
   text: string,
+  deps?: { leaving?: boolean },
 ): Promise<unknown> {
-  editSaveCalls.push({ capability, text });
+  editSaveCalls.push({ capability, text, deps });
   const gate = editSaveStub.gate;
   if (gate) {
     editSaveStub.gate = null;

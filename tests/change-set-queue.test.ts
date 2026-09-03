@@ -11,19 +11,22 @@ import { createChangeSetQueue } from "../src/renderers/markdown-change-set-queue
 
 function harness(idlePauseMs = 900) {
   const sent: string[] = [];
+  /** Whether each save was marked as one that must outlive its document. */
+  const leaving: boolean[] = [];
   const outcomes: string[] = [];
   let release: (() => void) | null = null;
   const queue = createChangeSetQueue<string>({
     idlePauseMs,
-    save: (text) => {
+    save: (text, options) => {
       sent.push(text);
+      leaving.push(options.leaving);
       return new Promise<string>((resolve) => {
         release = () => resolve(`saved:${text}`);
       });
     },
     onOutcome: (outcome) => outcomes.push(outcome),
   });
-  return { queue, sent, outcomes, settle: async () => { release?.(); await Promise.resolve(); await Promise.resolve(); } };
+  return { queue, sent, leaving, outcomes, settle: async () => { release?.(); await Promise.resolve(); await Promise.resolve(); } };
 }
 
 beforeEach(() => vi.useFakeTimers());
@@ -57,6 +60,64 @@ describe("leaving the view", () => {
     h.queue.edited("a");
     h.queue.flush();
     expect(h.sent).toEqual(["a"]);
+  });
+
+  // A LEAVING FLUSH THAT HAD NOTHING TO SEND MARKS NOTHING LATER. The budget a
+  // browser gives requests that outlive their document is small and SHARED
+  // across every such request the page has in flight, so a mark spent on a save
+  // that has a live document to complete in is a mark the leaving save may not
+  // have. A page hidden with nothing unsent, then shown again, is not leaving:
+  // the intent is remembered only where there is a change set it could not send.
+  it("does not mark a LATER ordinary save when the leaving flush had nothing to send", () => {
+    const h = harness();
+    // Hidden with an empty slot, then visible again.
+    h.queue.flush(true);
+    expect(h.sent).toEqual([]);
+    // An ordinary edit, sent by the pause under a live document.
+    h.queue.edited("a");
+    vi.advanceTimersByTime(900);
+    expect(h.sent).toEqual(["a"]);
+    expect(h.leaving).toEqual([false]);
+  });
+
+  // And the intent IS kept where there was something it could not send.
+  it("keeps the leaving mark for a change set the flush could not send yet", async () => {
+    const h = harness();
+    h.queue.edited("one");
+    vi.advanceTimersByTime(900);
+    expect(h.leaving).toEqual([false]);
+    h.queue.edited("two");
+    h.queue.flush(true);
+    await h.settle();
+    expect(h.sent).toEqual(["one", "two"]);
+    expect(h.leaving).toEqual([false, true]);
+  });
+
+  // AND THE INTENT GOES WITH THE CHANGE SET IT BELONGED TO. A save refused as
+  // stale reloads the newer revision and CANCELS the change set waiting behind
+  // it — and the leaving mark that change set was carrying is cancelled with
+  // it. A mark left latched here is spent on the very next ordinary save, one
+  // that has a live document to complete in, out of a budget the real leaving
+  // save may then not have.
+  it("drops the leaving mark when the change set carrying it is CANCELLED", async () => {
+    const h = harness();
+    h.queue.edited("one");
+    vi.advanceTimersByTime(900);
+    expect(h.sent).toEqual(["one"]);
+    // A second change set, and the page is hidden while "one" is still on the
+    // wire: the mark is remembered because "two" could not be sent yet.
+    h.queue.edited("two");
+    h.queue.flush(true);
+    expect(h.sent).toEqual(["one"]);
+    // The stale reload drops "two" and puts the newer revision on screen.
+    h.queue.cancelPending();
+    await h.settle();
+    expect(h.sent).toEqual(["one"]);
+    // Back on a live document, the next change set is an ORDINARY save.
+    h.queue.edited("three");
+    vi.advanceTimersByTime(900);
+    expect(h.sent).toEqual(["one", "three"]);
+    expect(h.leaving).toEqual([false, false]);
   });
 
   it("sends nothing when nothing is unsent", () => {
