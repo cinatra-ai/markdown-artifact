@@ -32,6 +32,11 @@ export type MarkdownView =
       kind: "document";
       /** Safe html from the shared sanitizer. Never the document's markdown. */
       html: string;
+      /** The document's own markdown, as the content channel carried it — what
+       *  the Code tab shows and what an edit starts from. Held BESIDE the html,
+       *  never instead of it: the Preview tab draws the sanitizer's output and
+       *  nothing else, and this string is never injected anywhere. */
+      source: string;
       /** The pinned revision the channel read the text from. */
       revisionId: string;
       truncated: boolean;

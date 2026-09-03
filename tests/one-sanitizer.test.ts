@@ -62,7 +62,13 @@ describe("the package draws through the one shared sanitizer", () => {
       /&(amp|lt|gt|quot|#0?39);/,
       /<\s*\/?\s*script/i,
       /javascript\s*:/i,
-      /\bon(?:error|load|click)\b\s*=/i,
+      // An event handler WRITTEN INTO MARKUP — `onerror="…"` inside a string
+      // this package built. A React event PROP (`onClick={fn}`) is not that: it
+      // is a function passed to a component, it never becomes an attribute in a
+      // string, and a display with tabs has them. The quote is what tells the
+      // two apart, and the smuggled sanitizer this guard is looking for emits
+      // the quoted form.
+      /\bon(?:error|load|click)\b\s*=\s*["'`]/i,
       /\bhttps?:\s*["'`]/,
       /replaceAll\s*\(/,
       /encodeURI(Component)?\s*\(/,
@@ -166,10 +172,17 @@ describe("the package draws through the one shared sanitizer", () => {
     // And the field the component draws carries that local, unaltered.
     expect(/\bhtml,\n/.test(view) || /\bhtml:\s*html\b/.test(view)).toBe(true);
 
-    // The component injects that field and nothing it computed itself.
+    // The component injects a value it was HANDED and nothing it computed
+    // itself. The one injection now sits in `MarkdownBody`, whose only argument
+    // is that value — so the guard reads both halves: what is injected is the
+    // parameter, and what the document view passes into it is `view.html`,
+    // unaltered. (The tabbed display passes the same field through the same
+    // component; the injection-count guard below is what says there is no other
+    // road.)
     const component = readFileSync(`${SRC}/renderers/markdown-document.tsx`, "utf8");
     const injected = /__html:\s*([^}]+)\}/.exec(component)?.[1]?.trim();
-    expect(injected).toBe("view.html");
+    expect(injected).toBe("html");
+    expect(component).toContain("html={view.html}");
   });
 
   it("injects html in exactly ONE place, ONCE, by no other road this guard knows of", () => {

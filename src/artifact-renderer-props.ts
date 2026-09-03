@@ -23,6 +23,7 @@
 // `./artifact-content-channel`, the local copy of that leaf beside this one.
 
 import type { ArtifactContentProjection } from "./artifact-content-channel";
+import type { ArtifactEditCapability } from "./artifact-edit-channel";
 
 export const ARTIFACT_RENDERER_PROPS_API_VERSION = 1;
 
@@ -86,4 +87,11 @@ export interface ArtifactRendererProps {
    * application, where reaching for bytes from the browser paints nothing.
    */
   content: ArtifactContentProjection;
+  /**
+   * THE EDIT CAPABILITY (enabler 0.20): a host-minted grant naming the base
+   * revision and where a change set goes, or a NAMED REFUSAL. Every surface says
+   * which — the artifact page grants, the review card refuses — so a display is
+   * read-only BY CONSTRUCTION wherever editing does not belong.
+   */
+  edit: ArtifactEditCapability;
 }

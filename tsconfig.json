@@ -5,7 +5,11 @@
     "target": "ES2023",
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2023",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "jsx": "react-jsx",
     "strict": true,
     "noImplicitAny": false,
@@ -21,9 +25,27 @@
       "@cinatra-ai/sdk-extensions/markdown-sanitizer": [
         "./node_modules/@cinatra-ai/sdk-extensions/src/markdown-sanitizer.ts",
         "./types/sdk-markdown-sanitizer.d.ts"
+      ],
+      "@cinatra-ai/sdk-extensions/artifact-edit-channel": [
+        "./node_modules/@cinatra-ai/sdk-extensions/src/artifact-edit-channel.ts",
+        "./types/sdk-artifact-edit-channel.d.ts"
+      ],
+      "@cinatra-ai/sdk-ui/toast": [
+        "./node_modules/@cinatra-ai/sdk-ui/src/toast.ts",
+        "./types/sdk-ui-toast.d.ts"
       ]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx", "types/**/*.d.ts"],
-  "exclude": ["node_modules", "dist"]
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "tests/**/*.ts",
+    "tests/**/*.tsx",
+    "types/**/*.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ],
+  "//host-provided": "Three specifiers are HOST-PROVIDED and resolve the same way as the sanitizer: the markdown sanitizer, the artifact-edit-channel's save road, and the application's toast surface. Each resolves to the real source when the SDK is installed at that path and to a signature-only declaration in ./types otherwise; the AUTHORITATIVE typecheck against the real packages is the one that runs where they live."
 }

@@ -9,7 +9,7 @@
 
 import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 import MarkdownArtifactDetail from "../src/renderers/detail";
 import MarkdownArtifactPreview from "../src/renderers/preview";
@@ -30,6 +30,18 @@ import {
 const MARKDOWN_BODY = "# A heading\n\n<img src=x onerror=alert(1)>\n\n[a link](https://example.test)";
 
 type Entry = (p: ArtifactRendererProps) => ReactElement;
+
+/**
+ * THE DETAIL DISPLAY DRAWS ITS DOCUMENT IN THE PREVIEW TAB (enabler 0.20): it
+ * opens on Code, which shows the markdown as it is written, and the RENDERED
+ * document is the other tab. The preview slot has no tabs and draws at once. So
+ * a contract about the rendered document asks for it where that display keeps
+ * it — the assertions themselves are unchanged.
+ */
+function showRenderedDocument(slot: string): void {
+  if (slot !== "detail") return;
+  fireEvent.click(screen.getByRole("tab", { name: "Preview" }));
+}
 const entries: Array<[string, Entry]> = [
   ["detail", MarkdownArtifactDetail as Entry],
   ["preview", MarkdownArtifactPreview as Entry],
@@ -52,6 +64,7 @@ describe.skipIf(REAL_SANITIZER)("the markdown displays draw through the shared s
     it(`${slot} injects the sanitizer's OUTPUT, not the document's markdown`, () => {
       sanitizerStubState.html = '<p data-marker="from-the-sanitizer">only this</p>';
       const { container } = render(<Entry {...props(textContent(MARKDOWN_BODY))} />);
+      showRenderedDocument(slot);
       expect(container.querySelector('[data-marker="from-the-sanitizer"]')).not.toBeNull();
       expect(container.textContent).toContain("only this");
       expect(container.innerHTML).not.toContain("onerror");
@@ -150,6 +163,7 @@ describe.skipIf(REAL_SANITIZER)("the markdown displays draw through the shared s
           )}
         />,
       );
+      showRenderedDocument(slot);
       expect(container.querySelector("[data-truncated='true']")).not.toBeNull();
       expect(container.textContent).toContain("262,144");
       expect(container.textContent).toContain("900,000");
@@ -291,6 +305,7 @@ describe.skipIf(REAL_SANITIZER)("the markdown displays draw through the shared s
   it("the preview draws the SAME sanitized rendering as the detail, in a clipped container", () => {
     const p = props(textContent(MARKDOWN_BODY));
     const detail = render(<MarkdownArtifactDetail {...p} />).container;
+    showRenderedDocument("detail");
     const detailBody = detail.querySelector("[data-markdown-body]")?.innerHTML;
     // Read while the full view is still MOUNTED — a query against a torn-down
     // container finds nothing whatever the display did.
