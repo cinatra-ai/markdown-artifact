@@ -21,7 +21,8 @@
   "peerDependencies": {
     "@cinatra-ai/sdk-extensions": "*",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "@cinatra-ai/sdk-ui": "*"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.0",
@@ -91,6 +92,9 @@
   },
   "peerDependenciesMeta": {
     "@cinatra-ai/sdk-extensions": {
+      "optional": true
+    },
+    "@cinatra-ai/sdk-ui": {
       "optional": true
     }
   }

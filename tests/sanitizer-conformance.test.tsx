@@ -16,7 +16,7 @@
 // make its own test run look fuller.
 
 import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, fireEvent, render, within } from "@testing-library/react";
 
 import MarkdownArtifactDetail from "../src/renderers/detail";
 import MarkdownArtifactPreview from "../src/renderers/preview";
@@ -27,6 +27,12 @@ afterEach(cleanup);
 
 function drawn(markdown: string): HTMLElement {
   const { container } = render(<MarkdownArtifactDetail {...props(textContent(markdown))} />);
+  // The detail display opens on its Code tab, which shows the markdown as it is
+  // WRITTEN; the RENDERED document — the thing this suite pins — is the other
+  // tab. Asking for it is one click, and the assertions below are unchanged.
+  // Scoped to THIS render: a test that draws twice without a cleanup between
+  // has two displays on the page, and a document-wide query would find both.
+  fireEvent.click(within(container).getByRole("tab", { name: "Preview" }));
   const body = container.querySelector("[data-markdown-body]");
   if (!body) throw new Error("the display drew no document body");
   return body as HTMLElement;

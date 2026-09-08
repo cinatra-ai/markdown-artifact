@@ -3,6 +3,10 @@
 // fails in one place.
 
 import type { ArtifactContentProjection } from "../src/artifact-content-channel";
+import type {
+  ArtifactEditCapability,
+  ArtifactEditRefusal,
+} from "../src/artifact-edit-channel";
 import type { ArtifactRendererProps } from "../src/artifact-renderer-props";
 
 export function textContent(
@@ -47,6 +51,14 @@ export function props(
     identity: { kind: "extension", extension: "@cinatra-ai/markdown-artifact" },
     actions: { download: "/download", openInSource: null },
     content,
+    // The DEFAULT is a refusal: a fixture must never grant an edit by accident,
+    // and every suite that means to test the editor says so explicitly.
+    edit: readOnlyEdit(),
     ...overrides,
   };
+}
+
+/** The refusal every surface but the artifact page mints. */
+export function readOnlyEdit(reason: ArtifactEditRefusal = "read-only-surface"): ArtifactEditCapability {
+  return { kind: "read-only", channelVersion: 1, reason };
 }

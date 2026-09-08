@@ -42,6 +42,24 @@ function floor(reason: MarkdownFloorReason): MarkdownView {
   return { kind: "floor", reason };
 }
 
+/**
+ * Render markdown to safe html through the ONE shared sanitizer, for the tab
+ * that draws a document the person is editing — the pinned text is rendered by
+ * `resolveMarkdownView` above, and every keystroke after it comes through here.
+ *
+ * NOTHING IS SANITIZED HERE EITHER. This is the same call the resolver makes,
+ * with the same options, so the previewed document and the drawn document can
+ * never disagree about what is safe. A failure renders nothing rather than
+ * anything unsanitized.
+ */
+export function renderMarkdownHtml(markdown: string): string {
+  try {
+    return renderSanitizedMarkdown(markdown, { demoteHeadings: true });
+  } catch {
+    return "";
+  }
+}
+
 /** Resolve what to draw. Total: it returns a view for every input. */
 export function resolveMarkdownView(props: MarkdownRendererInput): MarkdownView {
   if (props === null || props === undefined || typeof props !== "object" || Array.isArray(props)) {
@@ -151,6 +169,7 @@ export function resolveMarkdownView(props: MarkdownRendererInput): MarkdownView 
   return {
     kind: "document",
     html,
+    source: text,
     revisionId: contentRevisionId,
     truncated,
     byteLength,
