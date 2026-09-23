@@ -10,6 +10,11 @@
 // overwrites. What the host DOES with a change set is proved in the host's own
 // suites, against a real database.
 
+// THE LEAF'S TWO RUNTIME VALUES the display takes from it — the idle pause and
+// the grant test — are the stub mode's structural copy's own, re-exported so the
+// display resolves the same values at the same specifier in a standalone run.
+export { ARTIFACT_EDIT_IDLE_PAUSE_MS, isArtifactEditGranted } from "../../src/artifact-edit-channel";
+
 export interface RecordedEditSave {
   capability: unknown;
   text: string;

@@ -10,6 +10,16 @@
 // one: the whole point of the leaf entry is that a display does not carry its
 // own road to the store.
 
+import type { ArtifactEditCapability } from "../src/artifact-edit-channel";
+
+/** The idle pause that bounds a change set. */
+export declare const ARTIFACT_EDIT_IDLE_PAUSE_MS: 900;
+
+/** Is this capability one that admits an edit? */
+export declare function isArtifactEditGranted(
+  capability: ArtifactEditCapability | null | undefined,
+): capability is Extract<ArtifactEditCapability, { kind: "editable" }>;
+
 export interface ArtifactEditSaveDeps {
   fetch?: typeof fetch;
   signal?: AbortSignal;
