@@ -33,14 +33,17 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import type { ReactElement } from "react";
 
 import { cinatraToast } from "@cinatra-ai/sdk-ui/toast";
-import { saveArtifactEdit } from "@cinatra-ai/sdk-extensions/artifact-edit-channel";
-
+// THE EDIT CHANNEL'S RUNTIME VALUES COME FROM THE HOST'S LEAF, the source of
+// truth `../artifact-edit-channel` names itself a copy of; the display already
+// reaches that leaf for the save. The copy is named for TYPES only, in a
+// statement a compiler erases, so a host loading this display never loads it.
 import {
   ARTIFACT_EDIT_IDLE_PAUSE_MS,
   isArtifactEditGranted,
-  type ArtifactEditCapability,
-  type ArtifactEditOutcome,
-} from "../artifact-edit-channel";
+  saveArtifactEdit,
+} from "@cinatra-ai/sdk-extensions/artifact-edit-channel";
+
+import type { ArtifactEditCapability, ArtifactEditOutcome } from "../artifact-edit-channel";
 import { MarkdownBody, MarkdownTruncationNote } from "./markdown-document";
 import { MarkdownDisplayStyle } from "./markdown-display-style";
 import { createChangeSetQueue, type ChangeSetQueue } from "./markdown-change-set-queue";
@@ -54,6 +57,18 @@ export type MarkdownTab = "code" | "preview";
  *  first edit there is no save to report, and an indicator that read "Saved"
  *  on open would be claiming something no save has established. */
 export type SavingIndicator = null | "saving" | "saved" | "not-saved";
+
+/** The drawing's two readings of the saving indicator that the conformance
+ *  manifest names as the display's states: `loading` while a change set is on
+ *  its way (the spinner), `error` once the indicator reads Not saved. Every
+ *  other moment — nothing to say yet, Saved, a read-only surface — is no
+ *  state at all. The reason for a failure is still a toast, never a line in
+ *  the display. */
+function displayStateOf(indicator: SavingIndicator): "loading" | "error" | null {
+  if (indicator === "saving") return "loading";
+  if (indicator === "not-saved") return "error";
+  return null;
+}
 
 const TAB_LABELS: Record<MarkdownTab, string> = { code: "Code", preview: "Preview" };
 const TAB_ORDER: MarkdownTab[] = ["code", "preview"];
@@ -405,15 +420,19 @@ export function MarkdownTabbedDisplay({
     [tab, text, source, view.html],
   );
 
+  const displayState = granted ? displayStateOf(indicator) : null;
+
   return (
     <article
       className="soft-panel rounded-card overflow-hidden"
+      data-conformance-id="markdown-display-tabs"
       data-artifact-renderer="markdown"
       data-slot={slot}
       data-revision={shownRevisionId}
       data-editable={granted ? "true" : "false"}
       {...(view.truncated ? { "data-truncated": "true" } : {})}
       {...(granted ? {} : { "data-read-only-reason": edit?.kind === "read-only" ? edit.reason : "no-capability" })}
+      {...(displayState ? { "data-display-state": displayState } : {})}
     >
       <MarkdownDisplayStyle />
       <div className="flex flex-wrap items-center gap-2 border-b border-line bg-surface px-3">
@@ -453,6 +472,7 @@ export function MarkdownTabbedDisplay({
           id={`${idPrefix}-panel-code`}
           aria-labelledby={`${idPrefix}-tab-code`}
           data-panel="code"
+          data-field="content=representation.markdown"
           className="p-3"
         >
           {granted ? (
@@ -467,6 +487,7 @@ export function MarkdownTabbedDisplay({
               <textarea
                 aria-label="Markdown source"
                 data-code-editor=""
+                data-action="edit-markdown -> revision-saved"
                 spellCheck={false}
                 value={text}
                 onChange={(event) => onEdited(event.target.value)}
@@ -507,6 +528,7 @@ export function MarkdownTabbedDisplay({
           id={`${idPrefix}-panel-preview`}
           aria-labelledby={`${idPrefix}-tab-preview`}
           data-panel="preview"
+          data-field="content=representation.markdown"
           className="p-6"
         >
           <MarkdownBody html={html} compact={false} />
