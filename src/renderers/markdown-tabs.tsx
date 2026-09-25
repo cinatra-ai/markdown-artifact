@@ -298,8 +298,18 @@ export function MarkdownTabbedDisplay({
   );
 
   // ONE QUEUE PER EDITOR, living as long as the capability it saves under.
-  const queue = useMemo(() => {
-    if (!granted) return null;
+  // THE QUEUE BELONGS TO THE EFFECT BELOW, which creates it and disposes it:
+  // StrictMode runs that effect as mount, cleanup, mount on one component, and
+  // a queue made once for the component was closed by the first cleanup and
+  // then kept by the second mount, dropping every edit. The handlers reach the
+  // current queue through this ref.
+  const queueRef = useRef<ChangeSetQueue | null>(null);
+
+  // LEAVING THE VIEW, in every way a person leaves it: the component going away
+  // (navigating off the page), and the tab or window being hidden (switching
+  // away, closing). Both flush whatever the pause has not sent yet.
+  useEffect(() => {
+    if (!granted) return;
     // The queue is handed to its own outcome callback so a refusal can drop the
     // change set waiting behind it (see `applyOutcome`); it is assigned before
     // any save can settle, so the read is never null there.
@@ -314,14 +324,8 @@ export function MarkdownTabbedDisplay({
         ) as Promise<ArtifactEditOutcome>,
       onOutcome: (outcome, sentText) => applyOutcome(outcome, sentText, created),
     });
-    return created;
-  }, [granted, applyOutcome]);
-
-  // LEAVING THE VIEW, in every way a person leaves it: the component going away
-  // (navigating off the page), and the tab or window being hidden (switching
-  // away, closing). Both flush whatever the pause has not sent yet.
-  useEffect(() => {
-    if (!queue) return;
+    const queue = created;
+    queueRef.current = queue;
     // THE DOCUMENT ITSELF IS GOING: these flushes are LEAVING saves, and the
     // change set has to outlive the document that started it.
     //
@@ -358,8 +362,9 @@ export function MarkdownTabbedDisplay({
       // the slot before it does.
       leave();
       queue.dispose();
+      if (queueRef.current === queue) queueRef.current = null;
     };
-  }, [queue]);
+  }, [granted, applyOutcome]);
 
   const onEdited = (next: string): void => {
     setText(next);
@@ -373,7 +378,7 @@ export function MarkdownTabbedDisplay({
     // MID-COMPOSITION, THE CLOCK DOES NOT START. The composed word becomes a
     // change set when the input method says it is a word.
     if (composingRef.current) return;
-    queue?.edited(next);
+    queueRef.current?.edited(next);
   };
 
   /** Send whatever is unsent NOW. A composition in progress is CONSUMED first:
@@ -383,9 +388,9 @@ export function MarkdownTabbedDisplay({
   const flushNow = (leaving: boolean): void => {
     if (composingRef.current) {
       composingRef.current = false;
-      queue?.edited(textRef.current);
+      queueRef.current?.edited(textRef.current);
     }
-    queue?.flush(leaving);
+    queueRef.current?.flush(leaving);
   };
 
   const selectTab = (next: MarkdownTab): void => {
@@ -504,7 +509,7 @@ export function MarkdownTabbedDisplay({
                   setText(composed);
                   textRef.current = composed;
                   setIndicator("saving");
-                  queue?.edited(composed);
+                  queueRef.current?.edited(composed);
                 }}
                 onBlur={() => flushNow(false)}
                 className={`absolute inset-0 h-full w-full resize-none border-0 bg-transparent p-0 text-transparent caret-foreground outline-none ${CODE_TEXT}`}
