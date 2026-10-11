@@ -108,6 +108,10 @@ export const markdownArtifactManifest: MarkdownArtifactManifest = {
         propsApiVersion: 1,
         representations: ["text/markdown"],
       },
+      listRow: {
+        entry: "./src/renderers/list-row.tsx",
+        propsApiVersion: 1,
+      },
     },
   },
 };
