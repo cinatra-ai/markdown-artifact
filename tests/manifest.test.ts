@@ -96,12 +96,12 @@ describe("package.json manifest — the system-base markdown identity", () => {
 
   it("declares BOTH the detail and the preview display, each bound to markdown", () => {
     const renderers = pkg.cinatra.artifact.ui.renderers;
-    expect(Object.keys(renderers).sort()).toEqual(["detail", "preview"]);
+    expect(Object.keys(renderers).sort()).toEqual(["detail", "listRow", "preview"]);
     // Each slot names ITS OWN entry — swapping the two would pass every other
     // assertion here, and would mount the wrong module in each surface.
     expect(renderers.detail.entry).toBe("./src/renderers/detail.tsx");
     expect(renderers.preview.entry).toBe("./src/renderers/preview.tsx");
-    for (const renderer of Object.values(renderers)) {
+    for (const renderer of [renderers.detail, renderers.preview]) {
       expect(renderer.representations).toEqual(MIMES);
       expect(renderer.propsApiVersion).toBe(1);
       for (const k of Object.keys(renderer)) {

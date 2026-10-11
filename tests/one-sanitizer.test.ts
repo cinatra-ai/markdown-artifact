@@ -82,7 +82,7 @@ describe("the package draws through the one shared sanitizer", () => {
     }
   });
 
-  it("declares no runtime dependency at all, and no parser in any dependency list", () => {
+  it("declares no runtime dependency but the shared icon set, and no parser in any dependency list", () => {
     const pkg = JSON.parse(
       readFileSync(fileURLToPath(new URL("../package.json", import.meta.url)), "utf8"),
     ) as {
@@ -91,7 +91,7 @@ describe("the package draws through the one shared sanitizer", () => {
       optionalDependencies?: Record<string, string>;
       peerDependencies?: Record<string, string>;
     };
-    expect(pkg.dependencies ?? {}).toEqual({});
+    expect(pkg.dependencies ?? {}).toEqual({ "lucide-react": "^1.20.0" });
     const named = [
       ...Object.keys(pkg.dependencies ?? {}),
       ...Object.keys(pkg.devDependencies ?? {}),
