@@ -3,12 +3,13 @@
 // list's; this display draws the icon alone, from its props only, and returns the same
 // icon for every object type it receives.
 
-import type { ArtifactRendererProps } from "@cinatra-ai/sdk-extensions";
 import { Hash } from "lucide-react";
 import type { ReactElement } from "react";
 
 export default function MarkdownArtifactListRow(
-  _props: { artifact: Pick<ArtifactRendererProps["artifact"], "objectType"> },
+  // The props' shape is written here rather than imported from the SDK: the SDK is host-provided and this repository's
+  // standalone typecheck runs without it (tsconfig.json maps only the SDK sub-paths it needs to ./types fallbacks).
+  _props: { artifact: { objectType: string } },
 ): ReactElement {
   return <Hash aria-hidden size={17} strokeWidth={2} data-row-glyph="hash" />;
 }
