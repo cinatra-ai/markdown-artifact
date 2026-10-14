@@ -101,9 +101,11 @@ describe("package.json manifest — the system-base markdown identity", () => {
     // assertion here, and would mount the wrong module in each surface.
     expect(renderers.detail.entry).toBe("./src/renderers/detail.tsx");
     expect(renderers.preview.entry).toBe("./src/renderers/preview.tsx");
+    // The detail display reads the review at props v5; the preview stays at v1.
+    expect(renderers.detail.propsApiVersion).toBe(5);
+    expect(renderers.preview.propsApiVersion).toBe(1);
     for (const renderer of [renderers.detail, renderers.preview]) {
       expect(renderer.representations).toEqual(MIMES);
-      expect(renderer.propsApiVersion).toBe(1);
       for (const k of Object.keys(renderer)) {
         expect(ARTIFACT_UI_RENDERER_ALLOWED_KEYS.has(k)).toBe(true);
       }

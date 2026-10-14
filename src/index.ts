@@ -100,7 +100,7 @@ export const markdownArtifactManifest: MarkdownArtifactManifest = {
     renderers: {
       detail: {
         entry: "./src/renderers/detail.tsx",
-        propsApiVersion: 1,
+        propsApiVersion: 5,
         representations: ["text/markdown"],
       },
       preview: {

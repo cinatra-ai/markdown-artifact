@@ -8,7 +8,10 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { MARKDOWN_DISPLAY_PROPS_API_VERSION } from "../src/renderers/markdown-view";
+import {
+  MARKDOWN_DETAIL_PROPS_API_VERSION,
+  MARKDOWN_DISPLAY_PROPS_API_VERSION,
+} from "../src/renderers/markdown-view-contract";
 
 const pkg = JSON.parse(
   readFileSync(fileURLToPath(new URL("../package.json", import.meta.url)), "utf8"),
@@ -28,11 +31,13 @@ describe("the SDK the display draws through", () => {
 });
 
 describe("the declared props version", () => {
-  it("is the version every published display entry declares", () => {
-    const renderers = Object.values(pkg.cinatra.artifact.ui.renderers);
-    expect(renderers.length).toBeGreaterThan(0);
-    for (const renderer of renderers) {
-      expect(renderer.propsApiVersion).toBe(MARKDOWN_DISPLAY_PROPS_API_VERSION);
+  it("is the version each published display entry declares", () => {
+    const renderers = pkg.cinatra.artifact.ui.renderers;
+    expect(Object.keys(renderers).length).toBeGreaterThan(0);
+    for (const [slot, renderer] of Object.entries(renderers)) {
+      expect(renderer.propsApiVersion, slot).toBe(
+        slot === "detail" ? MARKDOWN_DETAIL_PROPS_API_VERSION : MARKDOWN_DISPLAY_PROPS_API_VERSION,
+      );
     }
   });
 });

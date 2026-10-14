@@ -8,10 +8,23 @@
 
 import type { ArtifactRendererProps } from "../artifact-renderer-props";
 
-/** The props-contract version these displays declare, and the only one they
- * accept a snapshot at. The manifest entries declare the same number, and the
- * host resolves the display and builds the snapshot at it. */
+/** The props-contract version the preview and list-row entries declare, and
+ * the only one the preview accepts a snapshot at. The manifest entries declare
+ * the same number, and the host resolves the display and builds the snapshot at
+ * it. */
 export const MARKDOWN_DISPLAY_PROPS_API_VERSION = 1;
+
+/** The props-contract version the detail entry declares. Version 5 carries the
+ * review reading and its decision time, which the continued reading of a post
+ * needs. */
+export const MARKDOWN_DETAIL_PROPS_API_VERSION = 5;
+
+/** The blog post type. The markdown display is the display that draws it. */
+export const BLOG_POST_OBJECT_TYPE = "@cinatra-ai/blog-post-artifact:post";
+
+/** The post's continuation sentence, word for word as the drawing gives it. */
+export const POST_CONTINUED_SENTENCE =
+  "The post keeps the revision it was continued at, and this review does not re-open.";
 
 export type MarkdownFloorReason =
   | "malformed-props"

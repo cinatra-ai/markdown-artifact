@@ -31,14 +31,38 @@ import type { ReactElement } from "react";
 import type { ArtifactRendererProps } from "../artifact-renderer-props";
 import { MarkdownDocument } from "./markdown-document";
 import { MarkdownTabbedDisplay } from "./markdown-tabs";
+import { postContinuedSentence } from "./markdown-continued-reading";
 import { resolveMarkdownView } from "./markdown-view";
+import {
+  MARKDOWN_DETAIL_PROPS_API_VERSION,
+  MARKDOWN_DISPLAY_PROPS_API_VERSION,
+} from "./markdown-view-contract";
+
+/**
+ * THE DETAIL READS v5 (cinatra#3978). The shared view resolver reads the
+ * document alone: the version stamp, the content projection and the
+ * representation, which are the same at v1 and at v5. So the detail display
+ * hands it the v1 reading of a v5 snapshot, exactly as the host narrows a
+ * snapshot to an older version, and reads the review itself. Every other
+ * version goes to the resolver unchanged and floors exactly as before.
+ */
+function documentReading(props: ArtifactRendererProps): ArtifactRendererProps {
+  if (props === null || typeof props !== "object") return props;
+  if (props.propsApiVersion !== MARKDOWN_DETAIL_PROPS_API_VERSION) return props;
+  return { ...props, propsApiVersion: MARKDOWN_DISPLAY_PROPS_API_VERSION };
+}
 
 export default function MarkdownArtifactDetail(props: ArtifactRendererProps): ReactElement {
-  const view = resolveMarkdownView(props);
+  const view = resolveMarkdownView(documentReading(props));
   if (view.kind === "floor") {
     return <MarkdownDocument view={view} slot="detail" compact={false} />;
   }
   return (
-    <MarkdownTabbedDisplay view={view} edit={props.edit} slot="detail" />
+    <MarkdownTabbedDisplay
+      view={view}
+      edit={props.edit}
+      slot="detail"
+      continuedSentence={postContinuedSentence(props)}
+    />
   );
 }

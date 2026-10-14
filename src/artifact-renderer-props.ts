@@ -25,7 +25,11 @@
 import type { ArtifactContentProjection } from "./artifact-content-channel";
 import type { ArtifactEditCapability } from "./artifact-edit-channel";
 
-export const ARTIFACT_RENDERER_PROPS_API_VERSION = 1;
+export const ARTIFACT_RENDERER_PROPS_API_VERSION = 5;
+
+/** The two readings of a review a surface draws a display in. */
+export const ARTIFACT_REVIEW_READINGS = ["pending", "continued"] as const;
+export type ArtifactReviewReading = (typeof ARTIFACT_REVIEW_READINGS)[number];
 
 /** The canonical ownership-level projection, spelled out so it can be asserted. */
 export const ARTIFACT_OWNER_LEVELS = ["user", "team", "organization", "workspace"] as const;
@@ -94,4 +98,15 @@ export interface ArtifactRendererProps {
    * read-only BY CONSTRUCTION wherever editing does not belong.
    */
   edit: ArtifactEditCapability;
+  /**
+   * THE REVIEW READING (props v3 and above): which reading of a review the
+   * surface draws this display in. ABSENT outside a review and below v3.
+   * `decidedAt` is the decision time of the reviewed revision, carried at v5
+   * only and only in the continued reading.
+   */
+  review?: {
+    reading: ArtifactReviewReading;
+    openLive: string | null;
+    decidedAt?: string;
+  };
 }
