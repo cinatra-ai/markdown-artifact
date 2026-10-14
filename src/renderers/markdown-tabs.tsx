@@ -169,6 +169,7 @@ export function MarkdownTabbedDisplay({
   view,
   edit,
   slot = "detail",
+  continuedSentence = null,
 }: {
   /** The resolved DOCUMENT view: the pinned markdown, its sanitized rendering,
    *  the revision it was read from, and whether the channel had to cut it. */
@@ -176,6 +177,9 @@ export function MarkdownTabbedDisplay({
   /** The host's edit capability: a grant, or a named refusal. */
   edit: ArtifactEditCapability | null | undefined;
   slot?: "detail" | "preview";
+  /** The type's continuation sentence for a continued review, or null. Drawn
+   *  inside the display, under the document. */
+  continuedSentence?: string | null;
 }): ReactElement {
   const source = view.source;
   const revisionId = view.revisionId;
@@ -545,6 +549,16 @@ export function MarkdownTabbedDisplay({
           ) : null}
         </div>
       )}
+      {continuedSentence ? (
+        <p
+          data-conformance-id="post-continued-reading"
+          data-field="reading=review.reading"
+          data-state="empty"
+          className="m-0 px-3.5 py-[9px] text-xs text-muted-foreground"
+        >
+          <span data-field="decision=review.decidedAt">{continuedSentence}</span>
+        </p>
+      ) : null}
     </article>
   );
 }

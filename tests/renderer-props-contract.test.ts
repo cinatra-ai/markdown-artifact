@@ -19,20 +19,26 @@ import {
   ARTIFACT_CONTENT_CLASSES,
 } from "../src/artifact-content-channel";
 import {
+  ARTIFACT_EDIT_CHANNEL_MIN_VERSION,
   ARTIFACT_EDIT_CHANNEL_VERSION,
   ARTIFACT_EDIT_REFUSALS,
 } from "../src/artifact-edit-channel";
 import {
   ARTIFACT_OWNER_LEVELS,
   ARTIFACT_RENDERER_PROPS_API_VERSION,
+  ARTIFACT_REVIEW_READINGS,
   ARTIFACT_VISIBILITIES,
   EFFECTIVE_IDENTITY_KINDS,
   type ArtifactRendererProps,
 } from "../src/artifact-renderer-props";
 
 describe("the renderer-props contract copy", () => {
-  it("carries the props ABI version the manifest entries declare", () => {
-    expect(ARTIFACT_RENDERER_PROPS_API_VERSION).toBe(1);
+  it("carries the props ABI version the leaf builds a snapshot at", () => {
+    expect(ARTIFACT_RENDERER_PROPS_API_VERSION).toBe(5);
+  });
+
+  it("spells the two review readings exactly as the contract does", () => {
+    expect([...ARTIFACT_REVIEW_READINGS]).toEqual(["pending", "continued"]);
   });
 
   it("spells the ownership levels exactly as the contract does", () => {
@@ -48,7 +54,8 @@ describe("the renderer-props contract copy", () => {
   });
 
   it("carries the edit channel's version, and spells its refusals exactly as the contract does", () => {
-    expect(ARTIFACT_EDIT_CHANNEL_VERSION).toBe(1);
+    expect(ARTIFACT_EDIT_CHANNEL_VERSION).toBe(2);
+    expect(ARTIFACT_EDIT_CHANNEL_MIN_VERSION).toBe(1);
     expect([...ARTIFACT_EDIT_REFUSALS]).toEqual([
       "no-write-rights",
       "read-only-surface",
@@ -67,7 +74,7 @@ describe("the renderer-props contract copy", () => {
     // This literal is the assertion: it fails the typecheck if this copy asks
     // for a field the host does not send, or spells a union the host does not.
     const snapshot: ArtifactRendererProps = {
-      propsApiVersion: 1,
+      propsApiVersion: 5,
       artifact: {
         id: "artifact-1",
         title: "A file",
@@ -95,6 +102,7 @@ describe("the renderer-props contract copy", () => {
         channelVersion: ARTIFACT_EDIT_CHANNEL_VERSION,
         reason: "read-only-surface",
       },
+      review: { reading: "continued", openLive: null, decidedAt: "2026-10-07T09:35:30.000Z" },
     };
     expect(snapshot.artifact.ownerLevel).toBe("user");
     expect(snapshot.identity.kind).toBe("extension");

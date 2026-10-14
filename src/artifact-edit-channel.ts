@@ -20,7 +20,15 @@
 // resolves to the signature-only declaration in `./types` and to an inert
 // recording double, and the suites that need the real one say so.
 
-export const ARTIFACT_EDIT_CHANNEL_VERSION = 1;
+export const ARTIFACT_EDIT_CHANNEL_VERSION = 2;
+
+/** The oldest edit-channel version the leaf still speaks. A display that
+ *  declared an older props version is handed version 1; one at props version 4
+ *  or above is handed version 2. Both are a grant of the text road. */
+export const ARTIFACT_EDIT_CHANNEL_MIN_VERSION = 1;
+
+/** The fields a version-2 grant may admit. This display edits the text alone. */
+export type ArtifactEditField = "text" | "title";
 
 /** The idle pause that bounds a change set. Stamped by the host onto every
  *  capability it mints; this copy is the fallback for a capability that somehow
@@ -56,6 +64,8 @@ export type ArtifactEditCapability =
       saveUrl: string;
       idlePauseMs: number;
       capBytes: number;
+      /** The fields a version-2 grant admits; absent at version 1. */
+      fields?: ReadonlyArray<ArtifactEditField>;
     }
   | { kind: "read-only"; channelVersion: number; reason: ArtifactEditRefusal };
 
@@ -97,7 +107,9 @@ export function isArtifactEditGranted(
     !!capability &&
     typeof capability === "object" &&
     capability.kind === "editable" &&
-    capability.channelVersion === ARTIFACT_EDIT_CHANNEL_VERSION &&
+    typeof capability.channelVersion === "number" &&
+    capability.channelVersion >= ARTIFACT_EDIT_CHANNEL_MIN_VERSION &&
+    capability.channelVersion <= ARTIFACT_EDIT_CHANNEL_VERSION &&
     typeof capability.saveUrl === "string" &&
     capability.saveUrl.length > 0 &&
     typeof capability.baseRevisionId === "string" &&
