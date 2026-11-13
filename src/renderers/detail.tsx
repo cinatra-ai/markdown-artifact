@@ -32,6 +32,7 @@ import type { ArtifactRendererProps } from "../artifact-renderer-props";
 import { MarkdownDocument } from "./markdown-document";
 import { MarkdownTabbedDisplay } from "./markdown-tabs";
 import { postContinuedSentence } from "./markdown-continued-reading";
+import { postTitle } from "./markdown-post-title";
 import { resolveMarkdownView } from "./markdown-view";
 import {
   MARKDOWN_DETAIL_PROPS_API_VERSION,
@@ -63,6 +64,7 @@ export default function MarkdownArtifactDetail(props: ArtifactRendererProps): Re
       edit={props.edit}
       slot="detail"
       continuedSentence={postContinuedSentence(props)}
+      title={postTitle(props)}
     />
   );
 }

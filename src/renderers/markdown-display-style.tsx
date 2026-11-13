@@ -135,6 +135,13 @@ export const MARKDOWN_DISPLAY_CSS = `
 [data-artifact-renderer="markdown"] [data-markdown-body] > :last-child {
   margin-block-end: 0;
 }
+[data-artifact-renderer="markdown"] [data-post-title] {
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  margin-block: 0 1rem;
+}
 [data-artifact-renderer="markdown"] [data-markdown-body] h1 {
   font-size: 1.75rem;
   font-weight: 700;
