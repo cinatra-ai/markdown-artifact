@@ -25,24 +25,59 @@ export function postTitle(props: MarkdownRendererInput): string | null {
   return title.length > 0 ? title : null;
 }
 
-/** The text of the document's first non-blank line when that line is an ATX
- * heading, or null. */
+/** The raw text of the document's first non-blank line when that line is an
+ * ATX heading under CommonMark (at most three leading spaces and no tab before
+ * one to six `#`, then a space or tab), or null. A line indented further is
+ * indented code, and a setext heading is not read here. */
 function openingHeading(source: string): string | null {
-  for (const raw of source.split(/\r?\n/)) {
-    const line = raw.trim();
-    if (line.length === 0) continue;
-    const match = /^#{1,6}\s+(.*?)(?:\s+#+)?\s*$/.exec(line);
-    return match ? match[1].trim() : null;
+  for (const line of source.split(/\r?\n/)) {
+    if (line.trim().length === 0) continue;
+    const match = /^ {0,3}#{1,6}[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$/.exec(line);
+    return match ? match[1] : null;
   }
   return null;
 }
 
+/** Characters with inline meaning in markdown. A title holding any of them is
+ * never handed to the body's heading: the display draws it as plain text. */
+const INLINE_MARKUP = /[\\`*_~[\]<>&]/;
+
+/** Wrappers whose rendering shows the inner text as written: emphasis and
+ * strong emphasis (`*`, `_`, nested), and a code span, which ends the read. */
+const EMPHASIS = /^(\*\*\*|\*\*|\*|___|__|_)(\S(?:.*\S)?)\1$/;
+const CODE_SPAN = /^(`+)(.+)\1$/;
+
+/** True when the heading's text is the title, either as written or wrapped
+ * whole in emphasis or a code span, for a title with no inline markup. */
+function headingShowsTitle(heading: string, title: string): boolean {
+  if (INLINE_MARKUP.test(title)) return false;
+  let text = heading;
+  for (;;) {
+    if (text === title) return true;
+    const code = CODE_SPAN.exec(text);
+    if (code) {
+      const inner = code[2];
+      return inner === title || inner === ` ${title} `;
+    }
+    const emphasis = EMPHASIS.exec(text);
+    if (!emphasis) return false;
+    text = emphasis[2];
+  }
+}
+
 /**
- * The title to draw over this document, or null. A document that already
- * opens with the title as its heading draws it once, from its own markdown.
+ * The title to draw over this document, or null. The title is dropped only
+ * when the document's first non-blank line is an ATX heading (levels 1 to 6)
+ * whose text is the title exactly, or the title wrapped whole in emphasis or a
+ * code span, and the title holds none of the characters backslash, backtick,
+ * `*`, `_`, `~`, `[`, `]`, `<`, `>` and `&`.
+ * The body's own heading then shows the title's words. Every other document,
+ * a setext opening heading included, keeps the title.
  */
 export function titleOverDocument(title: string | null, source: unknown): string | null {
   if (title === null) return null;
-  if (typeof source === "string" && openingHeading(source) === title) return null;
+  if (typeof source !== "string") return title;
+  const heading = openingHeading(source);
+  if (heading !== null && headingShowsTitle(heading, title)) return null;
   return title;
 }
