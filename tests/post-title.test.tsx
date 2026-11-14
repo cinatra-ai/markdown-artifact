@@ -19,9 +19,9 @@ import MarkdownArtifactPreview from "../src/renderers/preview";
 import { postTitle, titleOverDocument } from "../src/renderers/markdown-post-title";
 import type { ArtifactEditCapability } from "../src/artifact-edit-channel";
 import type { ArtifactRendererProps } from "../src/artifact-renderer-props";
-import { props, textContent } from "./props-fixture";
+import { props, readOnlyEdit, textContent } from "./props-fixture";
 import { resetArtifactEditChannelStub } from "./stubs/artifact-edit-channel-stub";
-import { resetMarkdownSanitizerStub } from "./stubs/markdown-sanitizer-stub";
+import { resetMarkdownSanitizerStub, sanitizerStubState } from "./stubs/markdown-sanitizer-stub";
 import { resetToastStub } from "./stubs/sdk-ui-toast-stub";
 
 const POST_TYPE = "@cinatra-ai/blog-post-artifact:post";
@@ -114,11 +114,45 @@ describe("the post's title in the markdown display", () => {
     expect(display(container).querySelector(TITLE_NODE)).toBeNull();
   });
 
-  it("draws the title once when the body already opens with it as a heading", () => {
+  // The sanitizer double renders no markdown, so each case below hands it the
+  // HTML the real sanitizer draws for the body's opening heading. The visible
+  // copies of the title are then counted in the whole display.
+  it("draws one visible title when the body already opens with it as an ATX heading", () => {
+    sanitizerStubState.html = `<h1>${TITLE}</h1><p>Teams pick a stack in an afternoon.</p>`;
     const { container } = render(
       <MarkdownArtifactDetail {...postProps({}, `# ${TITLE}\n\nTeams pick a stack in an afternoon.\n`)} />,
     );
-    expect(display(container).querySelector(TITLE_NODE)).toBeNull();
+    const article = display(container);
+    expect(article.querySelector(TITLE_NODE)).toBeNull();
+    const copies = screen.getAllByText(TITLE);
+    expect(copies).toHaveLength(1);
+    expect(article.querySelector("[data-markdown-body]")?.contains(copies[0])).toBe(true);
+  });
+
+  it("draws one visible title when the opening heading wraps the title in emphasis", () => {
+    sanitizerStubState.html = `<h1><strong>${TITLE}</strong></h1><p>Teams pick a stack in an afternoon.</p>`;
+    const { container } = render(
+      <MarkdownArtifactDetail {...postProps({}, `# **${TITLE}**\n\nTeams pick a stack in an afternoon.\n`)} />,
+    );
+    const article = display(container);
+    expect(article.querySelector(TITLE_NODE)).toBeNull();
+    const copies = screen.getAllByText(TITLE);
+    expect(copies).toHaveLength(1);
+    expect(article.querySelector("[data-markdown-body]")?.contains(copies[0])).toBe(true);
+  });
+
+  it("draws a title holding markdown characters as plain text, whatever the body opens with", () => {
+    const { container } = render(
+      <MarkdownArtifactDetail {...postProps({}, "# **bold**\n\nText.\n", "**bold**")} />,
+    );
+    expect(display(container).querySelector(TITLE_NODE)?.textContent).toBe("**bold**");
+  });
+
+  it("draws the title over a body whose first line is indented code, not a heading", () => {
+    const { container } = render(
+      <MarkdownArtifactDetail {...postProps({}, `    # ${TITLE}\n\nText.\n`)} />,
+    );
+    expect(display(container).querySelector(TITLE_NODE)?.textContent).toBe(TITLE);
   });
 
   it("draws nothing on a floor", () => {
@@ -127,9 +161,15 @@ describe("the post's title in the markdown display", () => {
     expect(container.querySelector(TITLE_NODE)).toBeNull();
   });
 
-  it("leaves the preview slot reading v1 alone", () => {
-    const { container } = render(<MarkdownArtifactPreview {...postProps()} />);
+  it("draws no title on a valid v1 preview of a post", () => {
+    // A VALID v1 snapshot (props version 1, a version-1 refusal, no review), so
+    // the preview draws the document itself, not a props-version floor.
+    const base = props(textContent(BODY), { edit: readOnlyEdit() });
+    const v1 = { ...base, artifact: { ...base.artifact, objectType: POST_TYPE, title: TITLE } };
+    const { container } = render(<MarkdownArtifactPreview {...v1} />);
+    expect(container.querySelector("[data-markdown-body]"), "the v1 preview draws the document").not.toBeNull();
     expect(container.querySelector(TITLE_NODE)).toBeNull();
+    expect(screen.queryByText(TITLE)).toBeNull();
   });
 });
 
@@ -150,5 +190,47 @@ describe("the title decision", () => {
     expect(titleOverDocument(TITLE, `\n\n## ${TITLE} ##\n`)).toBeNull();
     expect(titleOverDocument(TITLE, `Text.\n\n# ${TITLE}\n`)).toBe(TITLE);
     expect(titleOverDocument(null, BODY)).toBeNull();
+  });
+
+  it.each([3, 4, 5, 6])("drops the title under an opening level-%i heading", (level) => {
+    expect(titleOverDocument(TITLE, `${"#".repeat(level)} ${TITLE}\n\nText.`)).toBeNull();
+  });
+
+  it("keeps the title under a level-7 run, which is no heading", () => {
+    expect(titleOverDocument(TITLE, `####### ${TITLE}\n`)).toBe(TITLE);
+  });
+
+  it("reads at most three leading spaces and no tab before the heading (CommonMark)", () => {
+    expect(titleOverDocument(TITLE, `   # ${TITLE}\n`)).toBeNull();
+    expect(titleOverDocument(TITLE, `    # ${TITLE}\n`)).toBe(TITLE);
+    expect(titleOverDocument(TITLE, `\t# ${TITLE}\n`)).toBe(TITLE);
+  });
+
+  it("drops the title under an opening heading that wraps it whole in emphasis or code", () => {
+    expect(titleOverDocument(TITLE, `# **${TITLE}**\n`)).toBeNull();
+    expect(titleOverDocument(TITLE, `# *${TITLE}*\n`)).toBeNull();
+    expect(titleOverDocument(TITLE, `# _${TITLE}_\n`)).toBeNull();
+    expect(titleOverDocument(TITLE, `# __${TITLE}__\n`)).toBeNull();
+    expect(titleOverDocument(TITLE, `# ***${TITLE}***\n`)).toBeNull();
+    expect(titleOverDocument(TITLE, `# **_${TITLE}_**\n`)).toBeNull();
+    expect(titleOverDocument(TITLE, `# \`${TITLE}\`\n`)).toBeNull();
+  });
+
+  it("keeps the title where the heading's markup is not a whole wrapper of it", () => {
+    expect(titleOverDocument(TITLE, `# \`**${TITLE}**\`\n`)).toBe(TITLE);
+    expect(titleOverDocument(TITLE, `# **${TITLE}*\n`)).toBe(TITLE);
+    expect(titleOverDocument(TITLE, `# ** ${TITLE}**\n`)).toBe(TITLE);
+    expect(titleOverDocument(TITLE, `# [${TITLE}](https://example.com)\n`)).toBe(TITLE);
+  });
+
+  it("keeps a title that holds markdown characters, so it stays plain text", () => {
+    expect(titleOverDocument("**bold**", "# **bold**\n")).toBe("**bold**");
+    expect(titleOverDocument("a_b", "# a_b\n")).toBe("a_b");
+    expect(titleOverDocument("<b>x</b>", "# <b>x</b>\n")).toBe("<b>x</b>");
+  });
+
+  it("keeps the title under a setext opening heading and a case-different heading", () => {
+    expect(titleOverDocument(TITLE, `${TITLE}\n===\n\nText.`)).toBe(TITLE);
+    expect(titleOverDocument(TITLE, `# ${TITLE.toLowerCase()}\n`)).toBe(TITLE);
   });
 });
