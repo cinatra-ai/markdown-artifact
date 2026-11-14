@@ -115,10 +115,11 @@ describe("the post's title in the markdown display", () => {
   });
 
   // The sanitizer double renders no markdown, so each case below hands it the
-  // HTML the real sanitizer draws for the body's opening heading. The visible
-  // copies of the title are then counted in the whole display.
+  // HTML the real sanitizer draws for the body's opening heading (this display
+  // demotes headings, so a `#` heading is drawn as an h2). The visible copies
+  // of the title are then counted in the whole display.
   it("draws one visible title when the body already opens with it as an ATX heading", () => {
-    sanitizerStubState.html = `<h1>${TITLE}</h1><p>Teams pick a stack in an afternoon.</p>`;
+    sanitizerStubState.html = `<h2>${TITLE}</h2><p>Teams pick a stack in an afternoon.</p>`;
     const { container } = render(
       <MarkdownArtifactDetail {...postProps({}, `# ${TITLE}\n\nTeams pick a stack in an afternoon.\n`)} />,
     );
@@ -130,7 +131,7 @@ describe("the post's title in the markdown display", () => {
   });
 
   it("draws one visible title when the opening heading wraps the title in emphasis", () => {
-    sanitizerStubState.html = `<h1><strong>${TITLE}</strong></h1><p>Teams pick a stack in an afternoon.</p>`;
+    sanitizerStubState.html = `<h2><strong>${TITLE}</strong></h2><p>Teams pick a stack in an afternoon.</p>`;
     const { container } = render(
       <MarkdownArtifactDetail {...postProps({}, `# **${TITLE}**\n\nTeams pick a stack in an afternoon.\n`)} />,
     );
@@ -146,6 +147,12 @@ describe("the post's title in the markdown display", () => {
       <MarkdownArtifactDetail {...postProps({}, "# **bold**\n\nText.\n", "**bold**")} />,
     );
     expect(display(container).querySelector(TITLE_NODE)?.textContent).toBe("**bold**");
+  });
+
+  it("draws the title over a body that opens with an empty heading whose closing sequence is all of it", () => {
+    sanitizerStubState.html = "<h2></h2><p>Text.</p>";
+    const { container } = render(<MarkdownArtifactDetail {...postProps({}, "# #\n\nText.\n", "#")} />);
+    expect(display(container).querySelector(TITLE_NODE)?.textContent).toBe("#");
   });
 
   it("draws the title over a body whose first line is indented code, not a heading", () => {
@@ -232,5 +239,56 @@ describe("the title decision", () => {
   it("keeps the title under a setext opening heading and a case-different heading", () => {
     expect(titleOverDocument(TITLE, `${TITLE}\n===\n\nText.`)).toBe(TITLE);
     expect(titleOverDocument(TITLE, `# ${TITLE.toLowerCase()}\n`)).toBe(TITLE);
+  });
+
+  it("keeps the title under an empty opening heading, a closing sequence being all of it (CommonMark)", () => {
+    expect(titleOverDocument("#", "# #\n\nText.")).toBe("#");
+    expect(titleOverDocument("###", "### ###\n")).toBe("###");
+    expect(titleOverDocument("#", "## ##\n")).toBe("#");
+    expect(titleOverDocument(TITLE, "#\n\nText.")).toBe(TITLE);
+    expect(titleOverDocument(TITLE, "#   \n\nText.")).toBe(TITLE);
+    expect(titleOverDocument(TITLE, `# #\n\n# ${TITLE}\n`)).toBe(TITLE);
+  });
+
+  it("strips a closing sequence only where a space or tab precedes it", () => {
+    expect(titleOverDocument("C# tips", "# C# tips #\n")).toBeNull();
+    expect(titleOverDocument("C#", "# C#\n")).toBeNull();
+    expect(titleOverDocument(TITLE, `# ${TITLE}\t#\t\n`)).toBeNull();
+    expect(titleOverDocument(TITLE, `# ${TITLE}#\n`)).toBe(TITLE);
+  });
+
+  it("reads CR, LF and CRLF as line endings (CommonMark)", () => {
+    expect(titleOverDocument(TITLE, `# ${TITLE}\r\rText.`)).toBeNull();
+    expect(titleOverDocument(TITLE, `\r\r# ${TITLE}\r`)).toBeNull();
+    expect(titleOverDocument(TITLE, `\r\n# ${TITLE}\r\n`)).toBeNull();
+    expect(titleOverDocument(TITLE, `Text.\r# ${TITLE}\r`)).toBe(TITLE);
+  });
+
+  it("needs a space or tab after the opening run, and takes one to three leading spaces", () => {
+    expect(titleOverDocument(TITLE, `#${TITLE}\n`)).toBe(TITLE);
+    expect(titleOverDocument(TITLE, `#\t${TITLE}\n`)).toBeNull();
+    expect(titleOverDocument(TITLE, ` # ${TITLE}\n`)).toBeNull();
+    expect(titleOverDocument(TITLE, `  # ${TITLE}\n`)).toBeNull();
+  });
+
+  it("reads a code span only between equal backtick fences", () => {
+    expect(titleOverDocument(TITLE, `# \`\`${TITLE}\`\n`)).toBe(TITLE);
+    expect(titleOverDocument(TITLE, `# \`${TITLE}\`\`\n`)).toBe(TITLE);
+    expect(titleOverDocument(TITLE, `# \`\`${TITLE}\`\`\n`)).toBeNull();
+    expect(titleOverDocument(TITLE, `# \`\` ${TITLE} \`\`\n`)).toBeNull();
+  });
+
+  it("decides in linear time on long crafted headings", () => {
+    const crafted = [
+      "# a" + " ".repeat(100000) + "#".repeat(100000) + "x",
+      "# " + "*".repeat(60000) + "T" + "*".repeat(59999),
+      "# " + "`".repeat(60000) + "T" + "`".repeat(59999),
+      "#".repeat(200000) + " T",
+    ];
+    for (const source of crafted) {
+      const start = performance.now();
+      expect(titleOverDocument("T", source)).toBe("T");
+      expect(performance.now() - start).toBeLessThan(200);
+    }
   });
 });
