@@ -48,6 +48,7 @@ import { MarkdownBody, MarkdownTruncationNote } from "./markdown-document";
 import { MarkdownDisplayStyle } from "./markdown-display-style";
 import { createChangeSetQueue, type ChangeSetQueue } from "./markdown-change-set-queue";
 import { highlightMarkdown } from "./markdown-code-highlight";
+import { titleOverDocument } from "./markdown-post-title";
 import { renderMarkdownHtml } from "./markdown-view";
 import type { MarkdownView } from "./markdown-view-contract";
 
@@ -170,6 +171,7 @@ export function MarkdownTabbedDisplay({
   edit,
   slot = "detail",
   continuedSentence = null,
+  title = null,
 }: {
   /** The resolved DOCUMENT view: the pinned markdown, its sanitized rendering,
    *  the revision it was read from, and whether the channel had to cut it. */
@@ -180,6 +182,9 @@ export function MarkdownTabbedDisplay({
   /** The type's continuation sentence for a continued review, or null. Drawn
    *  inside the display, under the document. */
   continuedSentence?: string | null;
+  /** The post's title, or null. Drawn over the document on the Preview tab,
+   *  as plain text, never through the sanitizer. */
+  title?: string | null;
 }): ReactElement {
   const source = view.source;
   const revisionId = view.revisionId;
@@ -430,6 +435,9 @@ export function MarkdownTabbedDisplay({
   );
 
   const displayState = granted ? displayStateOf(indicator) : null;
+  // THE POST'S TITLE over the document it heads, on the Preview tab only: the
+  // Code tab shows the markdown as it is written, and a title is not in it.
+  const previewTitle = titleOverDocument(title, text);
 
   return (
     <article
@@ -540,6 +548,7 @@ export function MarkdownTabbedDisplay({
           data-field="content=representation.markdown"
           className="p-6"
         >
+          {previewTitle ? <h2 data-post-title="">{previewTitle}</h2> : null}
           <MarkdownBody html={html} compact={false} />
           {view.truncated ? (
             <MarkdownTruncationNote
